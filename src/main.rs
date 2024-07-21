@@ -7,7 +7,8 @@
 
 mod building;
 
-use bevy::{color::palettes::css::*, prelude::*};
+use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
+use bevy::prelude::*;
 
 use crate::building::BuildingsPlugin;
 
@@ -15,8 +16,9 @@ use crate::building::BuildingsPlugin;
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, BuildingsPlugin))
+        .add_plugins((PhysicsPlugins::default(), PhysicsDebugPlugin::default()))
         .add_systems(Startup, setup_camera)
-        .add_systems(Update, (close_on_esc, draw_cursor_rectangle))
+        .add_systems(Update, close_on_esc)
         .run();
 }
 
@@ -43,40 +45,4 @@ fn setup_camera(mut commands: Commands) {
         transform: Transform::from_xyz(0.0, 0.0, 0.0),
         ..default()
     },));
-}
-
-/// Draw a "debug" rectangle at cursor position
-fn draw_cursor_rectangle(
-    mut gizmos: Gizmos,
-    windows: Query<&Window>,
-    cameras: Query<(&Camera, &GlobalTransform)>,
-) {
-    // gizmos.grid_2d(
-    //     Vec2::ZERO,
-    //     0.0,
-    //     UVec2::new(100, 100),
-    //     Vec2::new(100.0, 60.0),
-    //     GREY,
-    // );
-
-    let window = windows.single();
-    let (camera, camera_transform) = cameras.single();
-
-    let cursor_position = match window.cursor_position() {
-        Some(x) => x,
-        None => return,
-    };
-
-    let cursor_world_position = match camera.viewport_to_world_2d(camera_transform, cursor_position)
-    {
-        Some(x) => x,
-        None => return,
-    };
-
-    gizmos.rect_2d(
-        cursor_world_position,
-        Rot2::IDENTITY,
-        Vec2::new(100.0, 60.0),
-        BLUE,
-    );
 }
