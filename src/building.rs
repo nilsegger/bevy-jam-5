@@ -69,8 +69,6 @@ fn update_cursor_builder(
     mut cursor_builders: Query<&mut Transform, With<CursorBuilder>>,
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    mut placings: EventWriter<PlaceBuildingEvent>, // mut gizmos: Gizmos,
 ) {
     let window = windows.single();
     let (camera, camera_transform) = cameras.single();
@@ -88,20 +86,13 @@ fn update_cursor_builder(
 
     let mut builder_transform = cursor_builders.single_mut();
     builder_transform.translation = cursor_world_position.extend(0.0);
-
-    if mouse.just_released(MouseButton::Left) {
-        placings.send(PlaceBuildingEvent);
-    }
-
-    // gizmos.circle_2d(builder_transform.translation.xy(), 50.0, RED);
 }
 
 /// Checks if the event was called in a place where there is a possible slot nearby
 fn update_preview_building(
     builders: Query<(&GlobalTransform, &CollidingEntities), With<CursorBuilder>>,
     mut preview_buildings: Query<(&mut PreviewBuilding, &mut Transform)>,
-    buildings: Query<(&GlobalTransform, &ColliderAabb)>,
-    building_colliders: Query<&Collider, With<Building>>,
+    buildings: Query<(&GlobalTransform, &Collider, &ColliderAabb), With<Building>>,
 ) {
     if builders.is_empty() || preview_buildings.is_empty() {
         return;
@@ -110,29 +101,40 @@ fn update_preview_building(
     let (builder_transform, builder_collisions) = builders.single();
     let (mut preview_building, mut pb_transform) = preview_buildings.single_mut();
 
-    let closest_building = match find_building_closest_to_cursor(
-        builder_collisions,
-        building_colliders,
-        builder_transform,
-    ) {
-        Some(x) => x,
-        None => {
-            preview_building.visible = false;
-            return;
-        }
-    };
+    let closest_building =
+        match find_building_closest_to_cursor(builder_collisions, &buildings, builder_transform) {
+            Some(x) => x,
+            None => {
+                preview_building.visible = false;
+                return;
+            }
+        };
 
     let builder_pos = builder_transform.translation().xy();
 
-    let (closest_building_transform, closest_building_aabb) =
+    let (closest_building_transform, _, closest_building_aabb) =
         buildings.get(closest_building).unwrap();
 
     if builder_pos.y >= closest_building_aabb.min.y && builder_pos.y <= closest_building_aabb.max.y
     {
-        // Put left or right
         preview_building.visible = true;
-        pb_transform.translation =
-            Vec2::new(builder_pos.x, closest_building_transform.translation().y).extend(0.0);
+
+        // same level
+        if builder_pos.x < closest_building_transform.translation().x {
+            // left
+            pb_transform.translation = Vec2::new(
+                closest_building_aabb.min.x - 50.0, // HACK: hardcoded width
+                closest_building_transform.translation().y,
+            )
+            .extend(0.0);
+        } else {
+            // right
+            pb_transform.translation = Vec2::new(
+                closest_building_aabb.max.x + 50.0, // HACK: hardcoded width
+                closest_building_transform.translation().y,
+            )
+            .extend(0.0);
+        }
     } else if builder_pos.y >= closest_building_aabb.max.y {
         preview_building.visible = true;
         pb_transform.translation = Vec2::new(
@@ -144,6 +146,44 @@ fn update_preview_building(
         preview_building.visible = false;
     }
     // NOTE: no case for putting beneath
+}
+
+/// Checks if left mouse button was pressed and preview building is visible
+fn maybe_send_place_building_event(
+    preview_buildings: Query<&PreviewBuilding>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut events: EventWriter<PlaceBuildingEvent>,
+) {
+    if preview_buildings.is_empty() {
+        return;
+    }
+
+    let preview_building = preview_buildings.single();
+
+    if mouse.just_released(MouseButton::Left) && preview_building.visible {
+        dbg!(events.send(PlaceBuildingEvent));
+    }
+}
+
+/// realise the preview building into a real building
+fn handle_place_building_event(
+    mut cmd: Commands,
+    mut events: EventReader<PlaceBuildingEvent>,
+    preview_buildings: Query<&GlobalTransform, With<PreviewBuilding>>,
+) {
+    if events.is_empty() {
+        return;
+    }
+    events.clear();
+
+    let transform = preview_buildings.single();
+
+    cmd.spawn(BuildingBundle {
+        building: Building,
+        collider: Collider::rectangle(100.0, 60.0),
+        rigidbody: RigidBody::Static,
+        transform: TransformBundle::from_transform(transform.compute_transform()),
+    });
 }
 
 /// draws outline of preview building
@@ -167,26 +207,44 @@ fn display_preview_building(
 /// Finds building which is clsoest to the cursor
 fn find_building_closest_to_cursor(
     builder_collisions: &CollidingEntities,
-    building_colliders: Query<&Collider, With<Building>>,
+    building_colliders: &Query<(&GlobalTransform, &Collider, &ColliderAabb), With<Building>>,
     builder_transform: &GlobalTransform,
 ) -> Option<Entity> {
-    let min_distance = f32::MAX;
+    let mut same_row = false;
+    let mut min_distance = f32::MAX;
+
     let mut closest_building: Option<Entity> = None;
 
     for collision_entity in builder_collisions.iter() {
-        let building_collider = match building_colliders.get(*collision_entity) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
+        let (building_transform, building_collider, building_aabb) =
+            match building_colliders.get(*collision_entity) {
+                Ok(x) => x,
+                Err(_) => continue,
+            };
+
+        let building_xy = building_transform.translation().xy();
 
         let distance_to_point = building_collider.distance_to_point(
-            Vec2::ZERO,
+            building_xy,
             0.0,
             builder_transform.translation().xy(),
             true,
         );
 
-        if distance_to_point < min_distance {
+        let building_same_row = building_aabb.max.y >= builder_transform.translation().y
+            && building_aabb.min.y <= builder_transform.translation().y;
+
+        // NOTE: setup to favour buildings in the same "row" / "level"
+        if !building_same_row && same_row {
+            continue;
+        }
+
+        if building_same_row && !same_row {
+            same_row = true;
+            min_distance = distance_to_point;
+            closest_building = Some(*collision_entity);
+        } else if distance_to_point < min_distance {
+            min_distance = distance_to_point;
             closest_building = Some(*collision_entity);
         }
     }
@@ -219,8 +277,14 @@ impl Plugin for BuildingsPlugin {
                 Update,
                 (
                     update_cursor_builder,
-                    (update_preview_building, display_preview_building).chain(),
+                    (
+                        update_preview_building,
+                        display_preview_building,
+                        maybe_send_place_building_event,
+                    )
+                        .chain(),
                 ),
-            );
+            )
+            .add_systems(FixedUpdate, handle_place_building_event);
     }
 }
