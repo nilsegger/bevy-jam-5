@@ -43,7 +43,7 @@ pub fn close_on_esc(
 /// Init 2d camera
 fn setup_camera(mut commands: Commands) {
     commands.spawn((Camera2dBundle {
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        transform: Transform::from_xyz(0.0, 200.0, 0.0),
         ..default()
     },));
 }

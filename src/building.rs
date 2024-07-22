@@ -5,11 +5,9 @@ use bevy::{
     color::palettes::css::{GREEN, RED, WHITE_SMOKE},
     prelude::*,
 };
+use rand::prelude::*;
 
 use crate::layers::*;
-
-/// Used as margin for building colliders, otherwise they spawn inside of each other...
-const BUILDING_COLLIDER_EPS: f32 = 0.03;
 
 /// The Building component
 #[derive(Component)]
@@ -22,7 +20,11 @@ struct PreviewBuilding {
     visible: bool,
     /// blocked if a neighbor building is close, but there is something blocking the place...
     blocked: bool,
+    /// the size the building will take up
+    size: Vec2,
 }
+
+const PREVIEW_BUILDING_EPS: f32 = 0.02;
 
 /// Bundles all important components for a building
 #[derive(Bundle)]
@@ -64,11 +66,12 @@ fn add_default_entities(mut cmd: Commands) {
         PreviewBuilding {
             visible: false,
             blocked: false,
+            size: Vec2 { x: 100.0, y: 60.0 },
         },
         TransformBundle::IDENTITY,
         Sensor,
         RigidBody::Kinematic, // NOTE: same again, must it be kinematic??
-        Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
+        Collider::rectangle(100.0 - PREVIEW_BUILDING_EPS, 60.0 - PREVIEW_BUILDING_EPS),
         preview_building_layers(),
     ));
 
@@ -76,7 +79,7 @@ fn add_default_entities(mut cmd: Commands) {
         transform: TransformBundle::IDENTITY,
         building: Building,
         rigidbody: RigidBody::Static,
-        collider: Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
+        collider: Collider::rectangle(100.0, 60.0),
         layers: building_layers(),
     });
 }
@@ -142,14 +145,14 @@ fn update_preview_building(
         if builder_pos.x < closest_building_transform.translation().x {
             // left
             pb_transform.translation = Vec2::new(
-                closest_building_aabb.min.x - 50.0, // HACK: hardcoded width
+                closest_building_aabb.min.x - preview_building.size.x / 2.0,
                 closest_building_transform.translation().y,
             )
             .extend(0.0);
         } else {
             // right
             pb_transform.translation = Vec2::new(
-                closest_building_aabb.max.x + 50.0, // HACK: hardcoded width
+                closest_building_aabb.max.x + preview_building.size.x / 2.0,
                 closest_building_transform.translation().y,
             )
             .extend(0.0);
@@ -158,7 +161,7 @@ fn update_preview_building(
         preview_building.visible = true;
         pb_transform.translation = Vec2::new(
             builder_transform.translation().x,
-            closest_building_aabb.max.y + 30.0, // HACK: dont hardcode building height
+            closest_building_aabb.max.y + preview_building.size.y / 2.0,
         )
         .extend(0.0);
     } else {
@@ -198,22 +201,30 @@ fn maybe_send_place_building_event(
 fn handle_place_building_event(
     mut cmd: Commands,
     mut events: EventReader<PlaceBuildingEvent>,
-    preview_buildings: Query<&GlobalTransform, With<PreviewBuilding>>,
+    mut preview_buildings: Query<(Entity, &mut PreviewBuilding, &GlobalTransform)>,
 ) {
     if events.is_empty() {
         return;
     }
     events.clear();
 
-    let transform = preview_buildings.single();
+    let (pb_entity, mut preview_building, transform) = preview_buildings.single_mut();
 
     cmd.spawn(BuildingBundle {
         building: Building,
-        collider: Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
+        collider: Collider::rectangle(preview_building.size.x, preview_building.size.y),
         rigidbody: RigidBody::Static,
         transform: TransformBundle::from_transform(transform.compute_transform()),
         layers: building_layers(),
     });
+
+    let mut rng = rand::thread_rng();
+    preview_building.size.x = rng.gen_range(80..=100) as f32;
+
+    cmd.entity(pb_entity).insert(Collider::rectangle(
+        preview_building.size.x - PREVIEW_BUILDING_EPS,
+        preview_building.size.y - PREVIEW_BUILDING_EPS,
+    ));
 }
 
 /// draws outline of preview building
@@ -226,10 +237,11 @@ fn display_preview_building(
     if !pb.visible {
         return;
     }
+
     gizmos.rect_2d(
         transform.translation().xy(),
         0.0,
-        Vec2::new(100.0, 60.0),
+        pb.size,
         if pb.blocked { RED } else { GREEN },
     );
 }
