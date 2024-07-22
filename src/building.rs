@@ -2,9 +2,14 @@
 
 use avian2d::prelude::*;
 use bevy::{
-    color::palettes::css::{GREY, RED, WHITE_SMOKE},
+    color::palettes::css::{GREEN, RED, WHITE_SMOKE},
     prelude::*,
 };
+
+use crate::layers::*;
+
+/// Used as margin for building colliders, otherwise they spawn inside of each other...
+const BUILDING_COLLIDER_EPS: f32 = 0.03;
 
 /// The Building component
 #[derive(Component)]
@@ -13,8 +18,10 @@ struct Building;
 /// The Building which will be shown when a possible slot was found
 #[derive(Component)]
 struct PreviewBuilding {
-    /// if slot was found
+    /// true if cursor is close enough to put the building anywhere
     visible: bool,
+    /// blocked if a neighbor building is close, but there is something blocking the place...
+    blocked: bool,
 }
 
 /// Bundles all important components for a building
@@ -28,6 +35,8 @@ struct BuildingBundle {
     rigidbody: RigidBody,
     /// should be Collider::rect
     collider: Collider,
+    /// Correct layers
+    layers: CollisionLayers,
 }
 
 /// The component which will be attached to the cursor,
@@ -48,18 +57,27 @@ fn add_default_entities(mut cmd: Commands) {
         RigidBody::Kinematic, // NOTE: should it really by static if it gets moved?
         Sensor,
         Collider::circle(50.0),
+        cursor_builder_layers(),
     ));
 
     cmd.spawn((
-        PreviewBuilding { visible: false },
+        PreviewBuilding {
+            visible: false,
+            blocked: false,
+        },
         TransformBundle::IDENTITY,
+        Sensor,
+        RigidBody::Kinematic, // NOTE: same again, must it be kinematic??
+        Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
+        preview_building_layers(),
     ));
 
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,
         building: Building,
         rigidbody: RigidBody::Static,
-        collider: Collider::rectangle(100.0, 60.0),
+        collider: Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
+        layers: building_layers(),
     });
 }
 
@@ -91,7 +109,7 @@ fn update_cursor_builder(
 /// Checks if the event was called in a place where there is a possible slot nearby
 fn update_preview_building(
     builders: Query<(&GlobalTransform, &CollidingEntities), With<CursorBuilder>>,
-    mut preview_buildings: Query<(&mut PreviewBuilding, &mut Transform)>,
+    mut preview_buildings: Query<(&mut PreviewBuilding, &mut Transform, &CollidingEntities)>,
     buildings: Query<(&GlobalTransform, &Collider, &ColliderAabb), With<Building>>,
 ) {
     if builders.is_empty() || preview_buildings.is_empty() {
@@ -99,7 +117,8 @@ fn update_preview_building(
     }
 
     let (builder_transform, builder_collisions) = builders.single();
-    let (mut preview_building, mut pb_transform) = preview_buildings.single_mut();
+    let (mut preview_building, mut pb_transform, pb_colliding_entities) =
+        preview_buildings.single_mut();
 
     let closest_building =
         match find_building_closest_to_cursor(builder_collisions, &buildings, builder_transform) {
@@ -146,6 +165,13 @@ fn update_preview_building(
         preview_building.visible = false;
     }
     // NOTE: no case for putting beneath
+
+    if pb_colliding_entities.is_empty() {
+        // Free to place building
+        preview_building.blocked = false;
+    } else {
+        preview_building.blocked = true;
+    }
 }
 
 /// Checks if left mouse button was pressed and preview building is visible
@@ -160,7 +186,10 @@ fn maybe_send_place_building_event(
 
     let preview_building = preview_buildings.single();
 
-    if mouse.just_released(MouseButton::Left) && preview_building.visible {
+    if mouse.just_released(MouseButton::Left)
+        && preview_building.visible
+        && !preview_building.blocked
+    {
         dbg!(events.send(PlaceBuildingEvent));
     }
 }
@@ -180,9 +209,10 @@ fn handle_place_building_event(
 
     cmd.spawn(BuildingBundle {
         building: Building,
-        collider: Collider::rectangle(100.0, 60.0),
+        collider: Collider::rectangle(100.0 - BUILDING_COLLIDER_EPS, 60.0 - BUILDING_COLLIDER_EPS),
         rigidbody: RigidBody::Static,
         transform: TransformBundle::from_transform(transform.compute_transform()),
+        layers: building_layers(),
     });
 }
 
@@ -200,7 +230,7 @@ fn display_preview_building(
         transform.translation().xy(),
         0.0,
         Vec2::new(100.0, 60.0),
-        GREY,
+        if pb.blocked { RED } else { GREEN },
     );
 }
 

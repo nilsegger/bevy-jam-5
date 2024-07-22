@@ -6,6 +6,7 @@
 #![warn(clippy::style)]
 
 mod building;
+mod layers;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
 use bevy::prelude::*;
