@@ -81,7 +81,6 @@ fn add_default_entities(mut cmd: Commands) {
     cmd.spawn((
         CursorBuilder,
         TransformBundle::IDENTITY,
-        RigidBody::Kinematic, // NOTE: should it really by static if it gets moved?
         Sensor,
         Collider::circle(50.0),
         cursor_builder_layers(),
@@ -98,7 +97,6 @@ fn add_default_entities(mut cmd: Commands) {
             },
             TransformBundle::IDENTITY,
             Sensor,
-            RigidBody::Kinematic, // NOTE: same again, must it be kinematic??
             Collider::rectangle(100.0 - PREVIEW_BUILDING_EPS, 60.0 - PREVIEW_BUILDING_EPS),
             preview_building_layers(),
         ))
@@ -109,7 +107,6 @@ fn add_default_entities(mut cmd: Commands) {
             PreviewBuildingBottomSupportSensor,
             TransformBundle::from_transform(Transform::from_xyz(0.0, -40.0, 0.0)),
             Sensor,
-            RigidBody::Kinematic,
             Collider::rectangle(90.0, 10.0),
             preview_building_layers(), // NOTE: assumptions that same layers dont automatically collide
         ))
@@ -117,12 +114,20 @@ fn add_default_entities(mut cmd: Commands) {
 
     cmd.entity(pb).add_child(pb_bottom_support_sensor);
 
+    // Ground
+    cmd.spawn((
+        RigidBody::Static,
+        Collider::rectangle(1000.0, 50.0),
+        TransformBundle::from_transform(Transform::from_xyz(0.0, -30.0 - 25.0, 0.0)),
+        building_layers(),
+    ));
+
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,
         building: Building {
             size: Vec2::new(100.0, 60.0),
         },
-        rigidbody: RigidBody::Static,
+        rigidbody: RigidBody::Dynamic,
         collider: Collider::rectangle(100.0, 60.0),
         layers: building_layers(),
     });
@@ -269,7 +274,7 @@ fn handle_place_building_event(
                 size: preview_building.size,
             },
             collider: Collider::rectangle(preview_building.size.x, preview_building.size.y),
-            rigidbody: RigidBody::Static,
+            rigidbody: RigidBody::Dynamic,
             transform: TransformBundle::from_transform(transform.compute_transform()),
             layers: building_layers(),
         })
@@ -301,6 +306,9 @@ fn handle_place_building_event(
         .insert(Collider::rectangle(0.9 * preview_building.size.x, 10.0));
 
     let variants = [
+        BuildingVariants::Default,
+        BuildingVariants::Default,
+        BuildingVariants::Default,
         BuildingVariants::Default,
         BuildingVariants::Chimney(Vec2::ZERO),
     ];

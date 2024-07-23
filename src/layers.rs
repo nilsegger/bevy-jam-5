@@ -17,7 +17,10 @@ enum Layers {
 
 /// layers required by Building
 pub fn building_layers() -> CollisionLayers {
-    CollisionLayers::new(Layers::Building, [Layers::PreviewBuilding, Layers::Cursor])
+    CollisionLayers::new(
+        Layers::Building,
+        [Layers::PreviewBuilding, Layers::Cursor, Layers::Building],
+    )
 }
 
 /// layers required by chimneys
