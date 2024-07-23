@@ -9,6 +9,7 @@ mod building;
 mod layers;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
+use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
 
 use crate::building::BuildingsPlugin;
@@ -16,7 +17,14 @@ use crate::building::BuildingsPlugin;
 /// Main
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, BuildingsPlugin))
+        .add_plugins(DefaultPlugins.set(AssetPlugin {
+            // Wasm builds will check for meta files (that don't exist) if this isn't set.
+            // This causes errors and even panics in web builds on itch.
+            // See https://github.com/bevyengine/bevy_github_ci_template/issues/48.
+            meta_check: AssetMetaCheck::Never,
+            ..default()
+        }))
+        .add_plugins((BuildingsPlugin,))
         .add_plugins((PhysicsPlugins::default(), PhysicsDebugPlugin::default()))
         .add_systems(Startup, setup_camera)
         .add_systems(Update, close_on_esc)

@@ -1,6 +1,6 @@
 [package]
 name = "bevy-jam-5"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,6 +10,7 @@ rand = "0.8.5"
 
 bevy = "0.14"
 avian2d = "0.1"
+
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
 opt-level = 1
