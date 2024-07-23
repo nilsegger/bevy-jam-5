@@ -7,6 +7,8 @@ use avian2d::prelude::{CollisionLayers, PhysicsLayer};
 enum Layers {
     /// Any placed building
     Building,
+    /// Any placed building
+    Chimney,
     /// The preview building
     PreviewBuilding,
     /// Used for updating the preview building
@@ -18,6 +20,11 @@ pub fn building_layers() -> CollisionLayers {
     CollisionLayers::new(Layers::Building, [Layers::PreviewBuilding, Layers::Cursor])
 }
 
+/// layers required by chimneys
+pub fn chimney_layers() -> CollisionLayers {
+    CollisionLayers::new(Layers::Chimney, [Layers::PreviewBuilding])
+}
+
 /// layers required by Cursor Builder
 pub fn cursor_builder_layers() -> CollisionLayers {
     CollisionLayers::new(Layers::Cursor, [Layers::Building])
@@ -25,5 +32,5 @@ pub fn cursor_builder_layers() -> CollisionLayers {
 
 /// layers required by Preview Building
 pub fn preview_building_layers() -> CollisionLayers {
-    CollisionLayers::new(Layers::PreviewBuilding, [Layers::Building])
+    CollisionLayers::new(Layers::PreviewBuilding, [Layers::Building, Layers::Chimney])
 }

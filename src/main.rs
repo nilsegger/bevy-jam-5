@@ -36,7 +36,8 @@ fn main() {
                 // }),
         )
         .add_plugins((BuildingsPlugin,))
-        .add_plugins((PhysicsPlugins::default(), PhysicsDebugPlugin::default()))
+        .add_plugins(PhysicsPlugins::default())
+        // .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, setup_camera)
         .add_systems(Update, close_on_esc)
         .run();

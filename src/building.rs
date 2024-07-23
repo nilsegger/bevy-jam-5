@@ -2,7 +2,7 @@
 
 use avian2d::prelude::*;
 use bevy::{
-    color::palettes::css::{GREEN, RED, WHITE_SMOKE},
+    color::palettes::css::{DARK_GRAY, GREEN, RED, WHITE_SMOKE},
     prelude::*,
 };
 use rand::prelude::*;
@@ -11,11 +11,29 @@ use crate::layers::*;
 
 /// The Building component
 #[derive(Component)]
-struct Building;
+struct Building {
+    /// size of the building
+    size: Vec2,
+}
+
+/// Types of buildings
+#[derive(Debug)]
+enum BuildingVariants {
+    /// Flat roof
+    Default,
+    /// building with a chimney and its offset
+    Chimney(Vec2),
+}
+
+/// Chimney component
+#[derive(Component)]
+struct Chimney;
 
 /// The Building which will be shown when a possible slot was found
 #[derive(Component)]
 struct PreviewBuilding {
+    /// The variant that will be spawned
+    variant: BuildingVariants,
     /// true if cursor is close enough to put the building anywhere
     visible: bool,
     /// flag if there is a building beneath
@@ -72,6 +90,7 @@ fn add_default_entities(mut cmd: Commands) {
     let pb = cmd
         .spawn((
             PreviewBuilding {
+                variant: BuildingVariants::Default,
                 visible: false,
                 bottom_support: false,
                 blocked: false,
@@ -100,7 +119,9 @@ fn add_default_entities(mut cmd: Commands) {
 
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,
-        building: Building,
+        building: Building {
+            size: Vec2::new(100.0, 60.0),
+        },
         rigidbody: RigidBody::Static,
         collider: Collider::rectangle(100.0, 60.0),
         layers: building_layers(),
@@ -242,24 +263,74 @@ fn handle_place_building_event(
 
     let (pb_entity, mut preview_building, transform) = preview_buildings.single_mut();
 
-    cmd.spawn(BuildingBundle {
-        building: Building,
-        collider: Collider::rectangle(preview_building.size.x, preview_building.size.y),
-        rigidbody: RigidBody::Static,
-        transform: TransformBundle::from_transform(transform.compute_transform()),
-        layers: building_layers(),
-    });
+    let building = cmd
+        .spawn(BuildingBundle {
+            building: Building {
+                size: preview_building.size,
+            },
+            collider: Collider::rectangle(preview_building.size.x, preview_building.size.y),
+            rigidbody: RigidBody::Static,
+            transform: TransformBundle::from_transform(transform.compute_transform()),
+            layers: building_layers(),
+        })
+        .id();
 
+    match preview_building.variant {
+        BuildingVariants::Default => (),
+        BuildingVariants::Chimney(offset) => {
+            let chimney = cmd
+                .spawn((
+                    Chimney,
+                    TransformBundle::from_transform(Transform::from_translation(
+                        offset.extend(0.0),
+                    )),
+                    RigidBody::Kinematic,
+                    Collider::rectangle(20.0, 30.0), // HACK: remove hardcoded
+                    chimney_layers(),
+                ))
+                .id();
+            cmd.entity(building).add_child(chimney);
+        }
+    }
+
+    // Create new preview building
     let mut rng = rand::thread_rng();
     preview_building.size.x = rng.gen_range(80..=100) as f32;
 
-    cmd.entity(pb_entity).insert(Collider::rectangle(
-        preview_building.size.x - PREVIEW_BUILDING_EPS,
-        preview_building.size.y - PREVIEW_BUILDING_EPS,
-    ));
-
     cmd.entity(pb_bottom_support_sensors.single())
         .insert(Collider::rectangle(0.9 * preview_building.size.x, 10.0));
+
+    let variants = [
+        BuildingVariants::Default,
+        BuildingVariants::Chimney(Vec2::ZERO),
+    ];
+
+    let new_variant = variants.choose(&mut rng).unwrap();
+
+    dbg!(new_variant);
+
+    let default_collider = Collider::rectangle(
+        preview_building.size.x - PREVIEW_BUILDING_EPS,
+        preview_building.size.y - PREVIEW_BUILDING_EPS,
+    );
+
+    match new_variant {
+        BuildingVariants::Default => {
+            preview_building.variant = BuildingVariants::Default;
+            cmd.entity(pb_entity).insert(default_collider);
+        }
+        BuildingVariants::Chimney(_) => {
+            let offset = 0.4 * preview_building.size.x;
+            let x_offset = rng.gen_range(-offset..=offset) as f32;
+            let chimney_collider = Collider::rectangle(20.0, 30.0);
+            let chimney_offset = Vec2::new(x_offset, 30.0 + 15.0);
+            preview_building.variant = BuildingVariants::Chimney(chimney_offset);
+            cmd.entity(pb_entity).insert(Collider::compound(vec![
+                (Vec2::ZERO, 0.0, default_collider),
+                (chimney_offset, 0.0, chimney_collider),
+            ]));
+        }
+    }
 }
 
 /// draws outline of preview building
@@ -272,6 +343,18 @@ fn display_preview_building(
     if !pb.visible {
         return;
     }
+
+    match pb.variant {
+        BuildingVariants::Chimney(offset) => {
+            gizmos.rect_2d(
+                transform.translation().xy() + offset,
+                0.0,
+                Vec2::new(20.0, 30.0),
+                if pb.blocked { RED } else { GREEN },
+            );
+        }
+        BuildingVariants::Default => (),
+    };
 
     gizmos.rect_2d(
         transform.translation().xy(),
@@ -335,16 +418,25 @@ fn find_building_closest_to_cursor(
 }
 
 /// Debug outline of buildings
-fn outline_buildings_system(
-    buildings: Query<&GlobalTransform, With<Building>>,
-    mut gizmos: Gizmos,
-) {
-    for transform in &buildings {
+fn outline_buildings_system(buildings: Query<(&Building, &GlobalTransform)>, mut gizmos: Gizmos) {
+    for (building, transform) in &buildings {
         gizmos.rect_2d(
-            transform.translation().xz(),
+            transform.translation().xy(),
             Rot2::IDENTITY,
-            Vec2::new(100.0, 60.0),
+            building.size,
             WHITE_SMOKE,
+        );
+    }
+}
+
+/// Debug outline of buildings
+fn outline_chimneys_system(chimneys: Query<&GlobalTransform, With<Chimney>>, mut gizmos: Gizmos) {
+    for transform in &chimneys {
+        gizmos.rect_2d(
+            transform.translation().xy(),
+            Rot2::IDENTITY,
+            Vec2::new(20.0, 30.0),
+            DARK_GRAY,
         );
     }
 }
@@ -366,6 +458,8 @@ impl Plugin for BuildingsPlugin {
                         maybe_send_place_building_event,
                     )
                         .chain(),
+                    outline_buildings_system,
+                    outline_chimneys_system,
                 ),
             )
             .add_systems(FixedUpdate, handle_place_building_event);
