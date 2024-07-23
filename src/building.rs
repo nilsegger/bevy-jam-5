@@ -18,12 +18,19 @@ struct Building;
 struct PreviewBuilding {
     /// true if cursor is close enough to put the building anywhere
     visible: bool,
+    /// flag if there is a building beneath
+    bottom_support: bool,
     /// blocked if a neighbor building is close, but there is something blocking the place...
     blocked: bool,
     /// the size the building will take up
     size: Vec2,
 }
 
+/// A sensor that checks that there is another building below the preview building
+#[derive(Component)]
+struct PreviewBuildingBottomSupportSensor;
+
+/// Epsilon is used to inset PreviewBuilding collider checker
 const PREVIEW_BUILDING_EPS: f32 = 0.02;
 
 /// Bundles all important components for a building
@@ -62,18 +69,34 @@ fn add_default_entities(mut cmd: Commands) {
         cursor_builder_layers(),
     ));
 
-    cmd.spawn((
-        PreviewBuilding {
-            visible: false,
-            blocked: false,
-            size: Vec2 { x: 100.0, y: 60.0 },
-        },
-        TransformBundle::IDENTITY,
-        Sensor,
-        RigidBody::Kinematic, // NOTE: same again, must it be kinematic??
-        Collider::rectangle(100.0 - PREVIEW_BUILDING_EPS, 60.0 - PREVIEW_BUILDING_EPS),
-        preview_building_layers(),
-    ));
+    let pb = cmd
+        .spawn((
+            PreviewBuilding {
+                visible: false,
+                bottom_support: false,
+                blocked: false,
+                size: Vec2 { x: 100.0, y: 60.0 },
+            },
+            TransformBundle::IDENTITY,
+            Sensor,
+            RigidBody::Kinematic, // NOTE: same again, must it be kinematic??
+            Collider::rectangle(100.0 - PREVIEW_BUILDING_EPS, 60.0 - PREVIEW_BUILDING_EPS),
+            preview_building_layers(),
+        ))
+        .id();
+
+    let pb_bottom_support_sensor = cmd
+        .spawn((
+            PreviewBuildingBottomSupportSensor,
+            TransformBundle::from_transform(Transform::from_xyz(0.0, -40.0, 0.0)),
+            Sensor,
+            RigidBody::Kinematic,
+            Collider::rectangle(90.0, 10.0),
+            preview_building_layers(), // NOTE: assumptions that same layers dont automatically collide
+        ))
+        .id();
+
+    cmd.entity(pb).add_child(pb_bottom_support_sensor);
 
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,
@@ -113,6 +136,7 @@ fn update_cursor_builder(
 fn update_preview_building(
     builders: Query<(&GlobalTransform, &CollidingEntities), With<CursorBuilder>>,
     mut preview_buildings: Query<(&mut PreviewBuilding, &mut Transform, &CollidingEntities)>,
+    bottom_support_sensors: Query<&CollidingEntities, With<PreviewBuildingBottomSupportSensor>>,
     buildings: Query<(&GlobalTransform, &Collider, &ColliderAabb), With<Building>>,
 ) {
     if builders.is_empty() || preview_buildings.is_empty() {
@@ -169,12 +193,18 @@ fn update_preview_building(
     }
     // NOTE: no case for putting beneath
 
+    // Checks if found spot is free
     if pb_colliding_entities.is_empty() {
         // Free to place building
         preview_building.blocked = false;
     } else {
         preview_building.blocked = true;
     }
+
+    // Checks if found spot has a building beneath
+    let bottom_support_sensor = bottom_support_sensors.single();
+    preview_building.bottom_support =
+        !bottom_support_sensor.is_empty() || pb_transform.translation.y < 1.0;
 }
 
 /// Checks if left mouse button was pressed and preview building is visible
@@ -192,6 +222,7 @@ fn maybe_send_place_building_event(
     if mouse.just_released(MouseButton::Left)
         && preview_building.visible
         && !preview_building.blocked
+        && preview_building.bottom_support
     {
         dbg!(events.send(PlaceBuildingEvent));
     }
@@ -202,6 +233,7 @@ fn handle_place_building_event(
     mut cmd: Commands,
     mut events: EventReader<PlaceBuildingEvent>,
     mut preview_buildings: Query<(Entity, &mut PreviewBuilding, &GlobalTransform)>,
+    pb_bottom_support_sensors: Query<Entity, With<PreviewBuildingBottomSupportSensor>>,
 ) {
     if events.is_empty() {
         return;
@@ -225,6 +257,9 @@ fn handle_place_building_event(
         preview_building.size.x - PREVIEW_BUILDING_EPS,
         preview_building.size.y - PREVIEW_BUILDING_EPS,
     ));
+
+    cmd.entity(pb_bottom_support_sensors.single())
+        .insert(Collider::rectangle(0.9 * preview_building.size.x, 10.0));
 }
 
 /// draws outline of preview building
@@ -243,6 +278,12 @@ fn display_preview_building(
         0.0,
         pb.size,
         if pb.blocked { RED } else { GREEN },
+    );
+
+    gizmos.arrow_2d(
+        transform.translation().xy(),
+        transform.translation().xy() - Vec2::Y * 25.0,
+        if !pb.bottom_support { RED } else { GREEN },
     );
 }
 
