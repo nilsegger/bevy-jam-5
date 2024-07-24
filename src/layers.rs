@@ -13,13 +13,22 @@ enum Layers {
     PreviewBuilding,
     /// Used for updating the preview building
     Cursor,
+    /// Tectonic plates which will be greating the earthquake
+    Plates,
+    /// The ground keeps the plates at a certain level
+    Ground,
 }
 
 /// layers required by Building
 pub fn building_layers() -> CollisionLayers {
     CollisionLayers::new(
         Layers::Building,
-        [Layers::PreviewBuilding, Layers::Cursor, Layers::Building],
+        [
+            Layers::PreviewBuilding,
+            Layers::Cursor,
+            Layers::Building,
+            Layers::Plates,
+        ],
     )
 }
 
@@ -35,5 +44,18 @@ pub fn cursor_builder_layers() -> CollisionLayers {
 
 /// layers required by Preview Building
 pub fn preview_building_layers() -> CollisionLayers {
-    CollisionLayers::new(Layers::PreviewBuilding, [Layers::Building, Layers::Chimney])
+    CollisionLayers::new(
+        Layers::PreviewBuilding,
+        [Layers::Building, Layers::Chimney, Layers::Plates],
+    )
+}
+
+/// layers required by plates
+pub fn plates_layers() -> CollisionLayers {
+    CollisionLayers::new(Layers::Plates, [Layers::Building, Layers::Ground])
+}
+
+/// layers required by ground
+pub fn ground_layers() -> CollisionLayers {
+    CollisionLayers::new(Layers::Ground, [Layers::Plates])
 }

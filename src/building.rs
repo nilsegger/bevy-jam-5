@@ -1,4 +1,9 @@
 //! Everything related to placing new buildings
+//!
+
+// TODO: create cycle of building and earthquace
+// TODO: buildings should be gradually built, from bottom to top
+// TODO: joints should also be placeable?
 
 use avian2d::prelude::*;
 use bevy::{
@@ -113,14 +118,6 @@ fn add_default_entities(mut cmd: Commands) {
         .id();
 
     cmd.entity(pb).add_child(pb_bottom_support_sensor);
-
-    // Ground
-    cmd.spawn((
-        RigidBody::Static,
-        Collider::rectangle(1000.0, 50.0),
-        TransformBundle::from_transform(Transform::from_xyz(0.0, -30.0 - 25.0, 0.0)),
-        building_layers(),
-    ));
 
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,

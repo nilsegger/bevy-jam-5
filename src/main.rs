@@ -6,13 +6,17 @@
 #![warn(clippy::style)]
 
 mod building;
+mod earthquake;
 mod layers;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
 use bevy::prelude::*;
 use bevy::{asset::AssetMetaCheck, window::WindowResolution};
+use bevy_screen_diagnostics::{
+    ScreenDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin, ScreenFrameDiagnosticsPlugin,
+};
 
-use crate::building::BuildingsPlugin;
+use crate::{building::BuildingsPlugin, earthquake::EarthquakePlugin};
 
 // TODO: detect window resizes for fullscreen support
 
@@ -35,7 +39,10 @@ fn main() {
                 //     ..default()
                 // }),
         )
-        .add_plugins((BuildingsPlugin,))
+        .add_plugins(ScreenDiagnosticsPlugin::default())
+        .add_plugins(ScreenFrameDiagnosticsPlugin)
+        .add_plugins(ScreenEntityDiagnosticsPlugin)
+        .add_plugins((BuildingsPlugin, EarthquakePlugin))
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, setup_camera)

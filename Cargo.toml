@@ -8,8 +8,9 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 
-bevy = "0.14"
 avian2d = "0.1"
+bevy = "0.14"
+bevy_screen_diagnostics = "0.6.0"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
