@@ -1,7 +1,5 @@
 //! Everything related to placing new buildings
-//!
 
-// TODO: create cycle of building and earthquace
 // TODO: buildings should be gradually built, from bottom to top
 // TODO: joints should also be placeable?
 
@@ -20,6 +18,10 @@ struct Building {
     /// size of the building
     size: Vec2,
 }
+
+/// A breakable joint keeping buildings together
+#[derive(Component)]
+struct BuildingJoint;
 
 /// Types of buildings
 #[derive(Debug)]
@@ -286,7 +288,7 @@ fn handle_place_building_event(
                     TransformBundle::from_transform(Transform::from_translation(
                         offset.extend(0.0),
                     )),
-                    RigidBody::Kinematic,
+                    Sensor,
                     Collider::rectangle(20.0, 30.0), // HACK: remove hardcoded
                     chimney_layers(),
                 ))
@@ -425,9 +427,12 @@ fn find_building_closest_to_cursor(
 /// Debug outline of buildings
 fn outline_buildings_system(buildings: Query<(&Building, &GlobalTransform)>, mut gizmos: Gizmos) {
     for (building, transform) in &buildings {
+        let dir = transform.right();
+        let angle = dir.y.atan2(dir.x);
+
         gizmos.rect_2d(
             transform.translation().xy(),
-            Rot2::IDENTITY,
+            angle,
             building.size,
             WHITE_SMOKE,
         );
@@ -437,9 +442,12 @@ fn outline_buildings_system(buildings: Query<(&Building, &GlobalTransform)>, mut
 /// Debug outline of buildings
 fn outline_chimneys_system(chimneys: Query<&GlobalTransform, With<Chimney>>, mut gizmos: Gizmos) {
     for transform in &chimneys {
+        let dir = transform.right();
+        let angle = dir.y.atan2(dir.x);
+
         gizmos.rect_2d(
             transform.translation().xy(),
-            Rot2::IDENTITY,
+            angle,
             Vec2::new(20.0, 30.0),
             DARK_GRAY,
         );

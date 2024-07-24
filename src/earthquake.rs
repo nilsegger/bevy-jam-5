@@ -1,7 +1,7 @@
 //! Everything related to spawning the plates and randomly moving them
 
 use avian2d::prelude::*;
-use bevy::prelude::*;
+use bevy::{color::palettes::css::BROWN, prelude::*};
 use rand::seq::IteratorRandom;
 
 use crate::layers::{ground_layers, plates_layers};
@@ -125,6 +125,21 @@ fn earthquake(
     }
 }
 
+/// Debug outline of plates
+fn outline_plates(plates: Query<&GlobalTransform, With<Plate>>, mut gizmos: Gizmos) {
+    for transform in &plates {
+        let dir = transform.right();
+        let angle = dir.y.atan2(dir.x);
+
+        gizmos.rect_2d(
+            transform.translation().xy(),
+            angle,
+            Vec2::new(50.0, 50.0),
+            BROWN,
+        );
+    }
+}
+
 /// Earthquake logic bundled into plugin
 pub struct EarthquakePlugin;
 
@@ -136,6 +151,7 @@ impl Plugin for EarthquakePlugin {
                 stop: Timer::from_seconds(3.0, TimerMode::Repeating),
                 rumbles: Timer::from_seconds(0.1, TimerMode::Repeating),
             })
-            .add_systems(FixedUpdate, earthquake);
+            .add_systems(FixedUpdate, earthquake)
+            .add_systems(Update, outline_plates);
     }
 }

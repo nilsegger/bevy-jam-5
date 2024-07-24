@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(ScreenEntityDiagnosticsPlugin)
         .add_plugins((BuildingsPlugin, EarthquakePlugin))
         .add_plugins(PhysicsPlugins::default())
-        .add_plugins(PhysicsDebugPlugin::default())
+        // .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, setup_camera)
         .add_systems(Update, close_on_esc)
         .run();
