@@ -4,7 +4,7 @@ use avian2d::prelude::{CollisionLayers, PhysicsLayer};
 
 /// The physics layers required in the game
 #[derive(PhysicsLayer)]
-enum Layers {
+pub enum Layers {
     /// Any placed building
     Building,
     /// Any placed building

@@ -5,12 +5,30 @@
 
 use avian2d::prelude::*;
 use bevy::{
-    color::palettes::css::{DARK_GRAY, GREEN, RED, WHITE_SMOKE},
+    color::palettes::css::{DARK_GRAY, GREEN, PURPLE, RED, WHITE_SMOKE},
     prelude::*,
 };
+
 use rand::prelude::*;
 
 use crate::layers::*;
+
+/// The kind of operations supported
+enum BuildOps {
+    /// None
+    None,
+    /// Build a new building
+    Building,
+    /// Build a new joint
+    Joint,
+}
+
+/// Saves what operation is currently selected
+#[derive(Resource)]
+struct SelectedBuildOps {
+    /// the currently selected operation
+    selected: BuildOps,
+}
 
 /// The Building component
 #[derive(Component)]
@@ -22,6 +40,19 @@ struct Building {
 /// A breakable joint keeping buildings together
 #[derive(Component)]
 struct BuildingJoint;
+
+/// A breakable joint keeping buildings together, but its preview
+#[derive(Component)]
+struct BuildingJointPreview {
+    /// from entity
+    entity_start: Option<Entity>,
+    /// to entity
+    entity_end: Option<Entity>,
+    /// local start will be used as anchor
+    local_start: Vec2,
+    /// local end will be used as anchor
+    local_end: Vec2,
+}
 
 /// Types of buildings
 #[derive(Debug)]
@@ -120,6 +151,13 @@ fn add_default_entities(mut cmd: Commands) {
         .id();
 
     cmd.entity(pb).add_child(pb_bottom_support_sensor);
+
+    cmd.spawn(BuildingJointPreview {
+        entity_start: None,
+        entity_end: None,
+        local_start: Vec2::ZERO,
+        local_end: Vec2::ZERO,
+    });
 
     cmd.spawn(BuildingBundle {
         transform: TransformBundle::IDENTITY,
@@ -424,6 +462,98 @@ fn find_building_closest_to_cursor(
     closest_building
 }
 
+/// Update what build op is selected by keyboard shortcuts
+fn update_selected_build_op(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut build_ops: ResMut<SelectedBuildOps>,
+) {
+    if keys.just_released(KeyCode::KeyB) {
+        build_ops.selected = BuildOps::Building;
+    } else if keys.just_released(KeyCode::KeyJ) {
+        build_ops.selected = BuildOps::Joint;
+    } else if keys.just_released(KeyCode::KeyN) {
+        build_ops.selected = BuildOps::None;
+    }
+}
+
+/// Checks if a building was clicked -> then either set it as start point or send event to create
+/// new joint
+fn check_building_clicked_for_joint(
+    mut cmd: Commands,
+    windows: Query<&Window>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    spatial_query: SpatialQuery,
+    mut previews: Query<&mut BuildingJointPreview>,
+    transforms: Query<&GlobalTransform>,
+) {
+    if !mouse.just_released(MouseButton::Left) {
+        return;
+    }
+
+    let window = windows.single();
+    let (camera, camera_transform) = cameras.single();
+
+    let cursor_position = match window.cursor_position() {
+        Some(x) => x,
+        None => return,
+    };
+
+    let cursor_world_position = match camera.viewport_to_world_2d(camera_transform, cursor_position)
+    {
+        Some(x) => x,
+        None => return,
+    };
+
+    if let Some(projected) = spatial_query.project_point(
+        cursor_world_position,
+        true,
+        SpatialQueryFilter::from_mask(Layers::Building),
+    ) {
+        let mut preview = previews.single_mut();
+
+        if !projected.is_inside {
+            // NOTE: should this clear the previous?
+            preview.entity_start = None;
+            preview.entity_end = None;
+        } else {
+            let transform = match transforms.get(projected.entity) {
+                Ok(x) => x,
+                Err(_) => return, // NOTE: silend failing...
+            };
+
+            // NOTE: assuming no rotation....
+            let local_offset = projected.point - transform.translation().xy();
+
+            if preview.entity_start.is_none() {
+                preview.entity_start = Some(projected.entity);
+                preview.local_start = local_offset;
+            } else {
+                let transform_start = match transforms.get(preview.entity_start.unwrap()) {
+                    Ok(x) => x,
+                    Err(_) => return, // NOTE: silend failing...
+                };
+                // preview.entity_end = Some(projected.entity);
+                // preview.local_end = local_offset;
+
+                // probably should have been done with an event...
+                cmd.spawn((
+                    BuildingJoint,
+                    DistanceJoint::new(preview.entity_start.unwrap(), projected.entity)
+                        .with_local_anchor_1(preview.local_start)
+                        .with_local_anchor_2(local_offset)
+                        .with_rest_length(
+                            (transform_start.translation().xy() + preview.local_start)
+                                .distance(projected.point),
+                        ),
+                ));
+
+                preview.entity_start = None;
+            }
+        }
+    }
+}
+
 /// Debug outline of buildings
 fn outline_buildings_system(buildings: Query<(&Building, &GlobalTransform)>, mut gizmos: Gizmos) {
     for (building, transform) in &buildings {
@@ -454,26 +584,69 @@ fn outline_chimneys_system(chimneys: Query<&GlobalTransform, With<Chimney>>, mut
     }
 }
 
+/// display preview joints
+fn display_preview_joint(
+    previews: Query<&BuildingJointPreview>,
+    transforms: Query<&GlobalTransform>,
+    mut gizmos: Gizmos,
+) {
+    let preview = previews.single();
+
+    if let Some(e) = preview.entity_start {
+        let transform = match transforms.get(e) {
+            Ok(x) => x,
+            Err(_) => return,
+        };
+        gizmos.circle_2d(
+            transform.translation().xy() + preview.local_start,
+            3.0,
+            PURPLE,
+        );
+    }
+}
+
+/// Used to only run systems when currently building op is selected
+fn only_for_building_op(build_op: Res<SelectedBuildOps>) -> bool {
+    matches!(build_op.selected, BuildOps::Building)
+}
+
+/// Used to only run systems when currently building op is selected
+fn only_for_joint_op(build_op: Res<SelectedBuildOps>) -> bool {
+    matches!(build_op.selected, BuildOps::Joint)
+}
+
 /// Plugin for everything related to buildings
 pub struct BuildingsPlugin;
 
 impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlaceBuildingEvent>()
+            .insert_resource(SelectedBuildOps {
+                selected: BuildOps::None,
+            })
             .add_systems(Startup, add_default_entities)
             .add_systems(
                 Update,
                 (
-                    update_cursor_builder,
+                    update_selected_build_op,
                     (
-                        update_preview_building,
-                        display_preview_building,
-                        maybe_send_place_building_event,
+                        update_cursor_builder,
+                        (
+                            update_preview_building,
+                            display_preview_building,
+                            maybe_send_place_building_event,
+                        )
+                            .chain(),
                     )
-                        .chain(),
+                        .run_if(only_for_building_op),
                     outline_buildings_system,
                     outline_chimneys_system,
+                    display_preview_joint.run_if(only_for_joint_op),
                 ),
+            )
+            .add_systems(
+                FixedUpdate,
+                check_building_clicked_for_joint.run_if(only_for_joint_op),
             )
             .add_systems(FixedUpdate, handle_place_building_event);
     }
