@@ -53,7 +53,7 @@ fn add_default_plates(mut cmd: Commands) {
         } else {
             cmd.spawn(
                 DistanceJoint::new(ground, plate)
-                    .with_limits(width, height)
+                    .with_limits(0.0, height / 2.0 + 25.0 + 10.0)
                     .with_local_anchor_1(Vec2::new(x_offset, 0.0)),
             );
         }
@@ -63,7 +63,7 @@ fn add_default_plates(mut cmd: Commands) {
 
     cmd.spawn(
         DistanceJoint::new(ground, previous_plate.unwrap())
-            .with_limits(width, height)
+            .with_limits(0.0, height / 2.0 + 25.0 + 10.0)
             .with_local_anchor_1(Vec2::new(x_offset, 0.0)),
     );
 }
@@ -79,16 +79,27 @@ struct EarthquakeTimer {
     rumbles: Timer,
 }
 
+fn init_timers(mut timers: ResMut<EarthquakeTimer>) {
+    timers.next.reset();
+    timers.stop.reset();
+    timers.rumbles.reset();
+
+    timers.stop.pause();
+    timers.rumbles.pause();
+}
+
 /// Generates the earthquace by forcing ceratin plates upwards
 fn earthquake(
     mut cmd: Commands,
     plates: Query<Entity>,
     delta: Res<Time>,
     mut timers: ResMut<EarthquakeTimer>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     timers.next.tick(delta.delta());
 
-    if timers.next.just_finished() {
+    if keys.just_pressed(KeyCode::KeyX) {
+        // if timers.next.just_finished() {
         timers.stop.unpause();
         timers.stop.reset();
         timers.rumbles.unpause();
@@ -119,7 +130,7 @@ pub struct EarthquakePlugin;
 
 impl Plugin for EarthquakePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, add_default_plates)
+        app.add_systems(Startup, (add_default_plates, init_timers))
             .insert_resource(EarthquakeTimer {
                 next: Timer::from_seconds(10.0, TimerMode::Repeating),
                 stop: Timer::from_seconds(3.0, TimerMode::Repeating),
