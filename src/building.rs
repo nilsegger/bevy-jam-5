@@ -11,7 +11,7 @@ use bevy::{
 
 use rand::prelude::*;
 
-use crate::layers::*;
+use crate::{inhabitants::SpawnNewInhabitant, layers::*};
 
 /// The kind of operations supported
 enum BuildOps {
@@ -32,9 +32,9 @@ struct SelectedBuildOps {
 
 /// The Building component
 #[derive(Component)]
-struct Building {
+pub struct Building {
     /// size of the building
-    size: Vec2,
+    pub size: Vec2,
 }
 
 /// A breakable joint keeping buildings together
@@ -46,12 +46,8 @@ struct BuildingJoint;
 struct BuildingJointPreview {
     /// from entity
     entity_start: Option<Entity>,
-    /// to entity
-    entity_end: Option<Entity>,
     /// local start will be used as anchor
     local_start: Vec2,
-    /// local end will be used as anchor
-    local_end: Vec2,
 }
 
 /// Types of buildings
@@ -115,7 +111,7 @@ struct PlaceBuildingEvent;
 
 /// Adds the starting building for the tower
 /// Adds the CursorBuilder
-fn add_default_entities(mut cmd: Commands) {
+fn add_default_entities(mut cmd: Commands, mut inhabitants: EventWriter<SpawnNewInhabitant>) {
     cmd.spawn((
         CursorBuilder,
         TransformBundle::IDENTITY,
@@ -154,20 +150,22 @@ fn add_default_entities(mut cmd: Commands) {
 
     cmd.spawn(BuildingJointPreview {
         entity_start: None,
-        entity_end: None,
         local_start: Vec2::ZERO,
-        local_end: Vec2::ZERO,
     });
 
-    cmd.spawn(BuildingBundle {
-        transform: TransformBundle::IDENTITY,
-        building: Building {
-            size: Vec2::new(100.0, 60.0),
-        },
-        rigidbody: RigidBody::Dynamic,
-        collider: Collider::rectangle(100.0, 60.0),
-        layers: building_layers(),
-    });
+    let building = cmd
+        .spawn(BuildingBundle {
+            transform: TransformBundle::IDENTITY,
+            building: Building {
+                size: Vec2::new(100.0, 60.0),
+            },
+            rigidbody: RigidBody::Dynamic,
+            collider: Collider::rectangle(100.0, 60.0),
+            layers: building_layers(),
+        })
+        .id();
+
+    inhabitants.send(SpawnNewInhabitant(building));
 }
 
 /// Sets the position of the CursorBuilder to the cursors position
@@ -297,6 +295,7 @@ fn handle_place_building_event(
     mut events: EventReader<PlaceBuildingEvent>,
     mut preview_buildings: Query<(Entity, &mut PreviewBuilding, &GlobalTransform)>,
     pb_bottom_support_sensors: Query<Entity, With<PreviewBuildingBottomSupportSensor>>,
+    mut inhabitants: EventWriter<SpawnNewInhabitant>,
 ) {
     if events.is_empty() {
         return;
@@ -334,6 +333,8 @@ fn handle_place_building_event(
             cmd.entity(building).add_child(chimney);
         }
     }
+
+    inhabitants.send(SpawnNewInhabitant(building));
 
     // Create new preview building
     let mut rng = rand::thread_rng();
@@ -515,7 +516,6 @@ fn check_building_clicked_for_joint(
         if !projected.is_inside {
             // NOTE: should this clear the previous?
             preview.entity_start = None;
-            preview.entity_end = None;
         } else {
             let transform = match transforms.get(projected.entity) {
                 Ok(x) => x,

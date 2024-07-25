@@ -4,6 +4,7 @@ use avian2d::prelude::*;
 use bevy::{color::palettes::css::BROWN, prelude::*};
 use rand::seq::IteratorRandom;
 
+use crate::building::Building;
 use crate::layers::{ground_layers, plates_layers};
 
 /// Plates which will create the earthquake
@@ -138,6 +139,11 @@ fn outline_plates(plates: Query<&GlobalTransform, With<Plate>>, mut gizmos: Gizm
             BROWN,
         );
     }
+}
+
+/// Despawn buildings which are tilted more than X radian
+fn remove_tilted_buildings(buildings: Query<&GlobalTransform, With<Building>>) {
+    // TODO: check for tilted
 }
 
 /// Earthquake logic bundled into plugin

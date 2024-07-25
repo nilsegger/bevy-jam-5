@@ -7,6 +7,7 @@
 
 mod building;
 mod earthquake;
+mod inhabitants;
 mod layers;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
@@ -15,6 +16,7 @@ use bevy::{asset::AssetMetaCheck, window::WindowResolution};
 use bevy_screen_diagnostics::{
     ScreenDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin, ScreenFrameDiagnosticsPlugin,
 };
+use inhabitants::InhabitantPlugin;
 
 use crate::{building::BuildingsPlugin, earthquake::EarthquakePlugin};
 
@@ -42,10 +44,10 @@ fn main() {
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
         .add_plugins(ScreenEntityDiagnosticsPlugin)
-        .add_plugins((BuildingsPlugin, EarthquakePlugin))
+        .add_plugins((BuildingsPlugin, EarthquakePlugin, InhabitantPlugin))
         .add_plugins(PhysicsPlugins::default())
         // .add_plugins(PhysicsDebugPlugin::default())
-        .add_systems(Startup, setup_camera)
+        .add_systems(Startup, (setup_camera, init_level))
         .add_systems(Update, close_on_esc)
         .run();
 }
@@ -73,4 +75,19 @@ fn setup_camera(mut commands: Commands) {
         transform: Transform::from_xyz(0.0, 100.0, 0.0),
         ..default()
     },));
+}
+
+/// load sprites etc
+fn init_level(mut commands: Commands, asset_server: Res<AssetServer>, windows: Query<&Window>) {
+    let window = windows.single();
+
+    // Background
+    commands.spawn(SpriteBundle {
+        texture: asset_server.load("bg.png"),
+        sprite: Sprite {
+            custom_size: Some(window.size()),
+            ..default()
+        },
+        ..default()
+    });
 }
