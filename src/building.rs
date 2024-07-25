@@ -5,7 +5,7 @@
 
 use avian2d::prelude::*;
 use bevy::{
-    color::palettes::css::{DARK_GRAY, GREEN, PURPLE, RED, WHITE_SMOKE},
+    color::palettes::css::{DARK_GRAY, GREEN, ORANGE, PURPLE, RED, WHITE_SMOKE},
     prelude::*,
 };
 
@@ -605,6 +605,31 @@ fn display_preview_joint(
     }
 }
 
+/// display joints
+fn display_joints(
+    joints: Query<&DistanceJoint, With<BuildingJoint>>,
+    transforms: Query<&GlobalTransform>,
+    mut gizmos: Gizmos,
+) {
+    for joint in &joints {
+        let t1 = match transforms.get(joint.entity1) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+
+        let t2 = match transforms.get(joint.entity2) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+
+        let point1 = t1.translation().xy() + t1.right().xy().rotate(joint.local_anchor_1());
+        let point2 = t2.translation().xy() + t2.right().xy().rotate(joint.local_anchor_2());
+
+        gizmos.arrow_2d(point1, point2, ORANGE);
+        gizmos.arrow_2d(point2, point1, ORANGE);
+    }
+}
+
 /// Used to only run systems when currently building op is selected
 fn only_for_building_op(build_op: Res<SelectedBuildOps>) -> bool {
     matches!(build_op.selected, BuildOps::Building)
@@ -642,6 +667,7 @@ impl Plugin for BuildingsPlugin {
                     outline_buildings_system,
                     outline_chimneys_system,
                     display_preview_joint.run_if(only_for_joint_op),
+                    display_joints,
                 ),
             )
             .add_systems(
