@@ -523,7 +523,10 @@ fn check_building_clicked_for_joint(
             };
 
             // NOTE: assuming no rotation....
-            let local_offset = projected.point - transform.translation().xy();
+            // TODO: rotate
+            let mut local_offset = projected.point - transform.translation().xy();
+            let rotation = Vec2::from_angle(-transform.right().xy().to_angle());
+            local_offset = rotation.rotate(local_offset);
 
             if preview.entity_start.is_none() {
                 preview.entity_start = Some(projected.entity);
@@ -535,6 +538,9 @@ fn check_building_clicked_for_joint(
                 };
                 // preview.entity_end = Some(projected.entity);
                 // preview.local_end = local_offset;
+                //
+                let start_point = transform_start.translation().xy()
+                    + transform_start.right().xy().rotate(preview.local_start);
 
                 // probably should have been done with an event...
                 cmd.spawn((
@@ -542,10 +548,7 @@ fn check_building_clicked_for_joint(
                     DistanceJoint::new(preview.entity_start.unwrap(), projected.entity)
                         .with_local_anchor_1(preview.local_start)
                         .with_local_anchor_2(local_offset)
-                        .with_rest_length(
-                            (transform_start.translation().xy() + preview.local_start)
-                                .distance(projected.point),
-                        ),
+                        .with_rest_length(start_point.distance(projected.point)),
                 ));
 
                 preview.entity_start = None;
@@ -597,11 +600,11 @@ fn display_preview_joint(
             Ok(x) => x,
             Err(_) => return,
         };
-        gizmos.circle_2d(
-            transform.translation().xy() + preview.local_start,
-            3.0,
-            PURPLE,
-        );
+
+        let point =
+            transform.translation().xy() + transform.right().xy().rotate(preview.local_start);
+
+        gizmos.circle_2d(point, 3.0, PURPLE);
     }
 }
 
