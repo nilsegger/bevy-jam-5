@@ -9,6 +9,7 @@ mod building;
 mod earthquake;
 mod inhabitants;
 mod layers;
+mod player;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
 use bevy::prelude::*;
@@ -17,6 +18,7 @@ use bevy_screen_diagnostics::{
     ScreenDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin, ScreenFrameDiagnosticsPlugin,
 };
 use inhabitants::InhabitantPlugin;
+use player::PlayerPlugin;
 
 use crate::{building::BuildingsPlugin, earthquake::EarthquakePlugin};
 
@@ -44,7 +46,12 @@ fn main() {
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
         .add_plugins(ScreenEntityDiagnosticsPlugin)
-        .add_plugins((BuildingsPlugin, EarthquakePlugin, InhabitantPlugin))
+        .add_plugins((
+            BuildingsPlugin,
+            EarthquakePlugin,
+            InhabitantPlugin,
+            PlayerPlugin,
+        ))
         .add_plugins(PhysicsPlugins::default())
         // .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, (setup_camera, init_level))
