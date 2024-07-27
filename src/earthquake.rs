@@ -1,5 +1,7 @@
 //! Everything related to spawning the plates and randomly moving them
 
+use std::time::Duration;
+
 use avian2d::prelude::*;
 use bevy::{color::palettes::css::BROWN, prelude::*};
 use rand::seq::IteratorRandom;
@@ -11,8 +13,12 @@ use crate::layers::{ground_layers, plates_layers};
 #[derive(Component)]
 struct Plate;
 
+/// label which shows next cycle
+#[derive(Component)]
+struct EarthquakeLabel;
+
 /// Adds ground and plates
-fn add_default_plates(mut cmd: Commands) {
+fn add_default_plates(mut cmd: Commands, asset_server: Res<AssetServer>) {
     let width = 50.0;
     let height = 50.0;
 
@@ -67,11 +73,32 @@ fn add_default_plates(mut cmd: Commands) {
             .with_limits(0.0, height / 2.0 + 25.0 + 10.0)
             .with_local_anchor_1(Vec2::new(x_offset, 0.0)),
     );
+
+    cmd.spawn((
+        EarthquakeLabel,
+        TextBundle::from_section(
+            "Next Earthquake in: ",
+            TextStyle {
+                font: asset_server.load("fonts/RobotoSlab.ttf"),
+                font_size: 50.0,
+                ..default()
+            },
+        )
+        .with_text_justify(JustifyText::Right)
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(150.0),
+            right: Val::Px(5.0),
+            ..default()
+        }),
+    ));
 }
 
 /// Timer for earthquake
 #[derive(Resource)]
 struct EarthquakeTimer {
+    /// counter
+    count: i32,
     /// the timer which decides when the next earthquake happens
     next: Timer,
     /// the timer which dictates when the earthquake stops
@@ -99,8 +126,11 @@ fn earthquake(
 ) {
     timers.next.tick(delta.delta());
 
-    if keys.just_pressed(KeyCode::KeyX) {
-        // if timers.next.just_finished() {
+    // if keys.just_pressed(KeyCode::KeyX)  {
+    if timers.next.just_finished() {
+        timers.count += 1;
+        let secs = (timers.next.duration().as_secs() - 1).max(5);
+        timers.next.set_duration(Duration::from_secs(secs));
         timers.stop.unpause();
         timers.stop.reset();
         timers.rumbles.unpause();
@@ -141,6 +171,20 @@ fn outline_plates(plates: Query<&GlobalTransform, With<Plate>>, mut gizmos: Gizm
     }
 }
 
+/// update earthquake label
+fn update_earthquake_text(
+    mut texts: Query<&mut Text, With<EarthquakeLabel>>,
+    timer: Res<EarthquakeTimer>,
+) {
+    let mut text = texts.single_mut();
+
+    text.sections[0].value = format!(
+        "Earthquake #{} in {}s",
+        timer.count + 1,
+        timer.next.remaining_secs() as i64
+    );
+}
+
 /// Despawn buildings which are tilted more than X radian
 fn remove_tilted_buildings(buildings: Query<&GlobalTransform, With<Building>>) {
     // TODO: check for tilted
@@ -153,11 +197,12 @@ impl Plugin for EarthquakePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (add_default_plates, init_timers))
             .insert_resource(EarthquakeTimer {
-                next: Timer::from_seconds(10.0, TimerMode::Repeating),
+                count: 0,
+                next: Timer::from_seconds(30.0, TimerMode::Repeating),
                 stop: Timer::from_seconds(3.0, TimerMode::Repeating),
                 rumbles: Timer::from_seconds(0.1, TimerMode::Repeating),
             })
             .add_systems(FixedUpdate, earthquake)
-            .add_systems(Update, outline_plates);
+            .add_systems(Update, (outline_plates, update_earthquake_text));
     }
 }

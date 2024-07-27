@@ -124,7 +124,7 @@ fn handle_rent_timers(
             cmd.spawn((
                 TransformBundle::from_transform(rent_global.compute_transform()),
                 MoneyVisual {
-                    vel: Vec2::new(rng.gen_range(-20..20) as f32, rng.gen_range(0..100) as f32)
+                    vel: Vec2::new(rng.gen_range(-20..20) as f32, rng.gen_range(1..100) as f32)
                         .normalize(),
                     death: Timer::from_seconds(5.0, TimerMode::Once),
                 },
@@ -154,11 +154,16 @@ fn update_money(
 }
 
 /// draws green boxes for the money
-fn draw_money(moneys: Query<&GlobalTransform, With<MoneyVisual>>, mut gizmos: Gizmos) {
-    for money in moneys.iter() {
+fn draw_money(moneys: Query<(&GlobalTransform, &MoneyVisual)>, mut gizmos: Gizmos) {
+    for (global, money) in moneys.iter() {
+        if money.death.elapsed_secs() < 0.1 {
+            // some weird center rendering bug otherwise
+            continue;
+        }
+
         gizmos.rect_2d(
-            money.translation().xy(),
-            money.right().xy().to_angle(),
+            global.translation().xy(),
+            global.right().xy().to_angle(),
             Vec2::new(10.0, 5.0),
             DARK_GREEN,
         );

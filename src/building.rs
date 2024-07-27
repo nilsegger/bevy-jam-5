@@ -5,13 +5,16 @@
 
 use avian2d::prelude::*;
 use bevy::{
-    color::palettes::css::{DARK_GRAY, GREEN, ORANGE, PURPLE, RED, WHITE_SMOKE},
+    color::palettes::css::{
+        BLACK, DARK_GRAY, DARK_GREY, DARK_SLATE_BLUE, GREEN, ORANGE, PURPLE, RED, WHITE,
+        WHITE_SMOKE,
+    },
     prelude::*,
 };
 
 use rand::prelude::*;
 
-use crate::{inhabitants::SpawnNewInhabitant, layers::*};
+use crate::{inhabitants::SpawnNewInhabitant, layers::*, player::Player};
 
 /// The kind of operations supported
 enum BuildOps {
@@ -111,7 +114,11 @@ struct PlaceBuildingEvent;
 
 /// Adds the starting building for the tower
 /// Adds the CursorBuilder
-fn add_default_entities(mut cmd: Commands, mut inhabitants: EventWriter<SpawnNewInhabitant>) {
+fn add_default_entities(
+    mut cmd: Commands,
+    mut inhabitants: EventWriter<SpawnNewInhabitant>,
+    asset_server: Res<AssetServer>,
+) {
     cmd.spawn((
         CursorBuilder,
         TransformBundle::IDENTITY,
@@ -166,6 +173,47 @@ fn add_default_entities(mut cmd: Commands, mut inhabitants: EventWriter<SpawnNew
         .id();
 
     inhabitants.send(SpawnNewInhabitant(building));
+
+    cmd.spawn(NodeBundle {
+        style: Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(100.0),
+            right: Val::Px(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        ..default()
+    })
+    .with_children(|parent| {
+        parent
+            .spawn(ButtonBundle {
+                style: Style {
+                    width: Val::Px(200.0),
+                    height: Val::Px(65.0),
+                    border: UiRect::all(Val::Px(5.0)),
+                    // horizontally center child text
+                    justify_content: JustifyContent::Center,
+                    // vertically center child text
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                border_color: BorderColor(Color::BLACK),
+                border_radius: BorderRadius::MAX,
+                background_color: DARK_GREY.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    "New Building (B)",
+                    TextStyle {
+                        font: asset_server.load("fonts/RobotoSlab.ttf"),
+                        font_size: 30.0,
+                        color: Color::srgb(0.9, 0.9, 0.9),
+                    },
+                ));
+            });
+    });
 }
 
 /// Sets the position of the CursorBuilder to the cursors position
@@ -208,16 +256,17 @@ fn update_preview_building(
     let (mut preview_building, mut pb_transform, pb_colliding_entities) =
         preview_buildings.single_mut();
 
+    let builder_pos = builder_transform.translation().xy();
+
     let closest_building =
         match find_building_closest_to_cursor(builder_collisions, &buildings, builder_transform) {
             Some(x) => x,
             None => {
                 preview_building.visible = false;
+                pb_transform.translation = builder_pos.extend(0.0);
                 return;
             }
         };
-
-    let builder_pos = builder_transform.translation().xy();
 
     let (closest_building_transform, _, closest_building_aabb) =
         buildings.get(closest_building).unwrap();
@@ -296,11 +345,14 @@ fn handle_place_building_event(
     mut preview_buildings: Query<(Entity, &mut PreviewBuilding, &GlobalTransform)>,
     pb_bottom_support_sensors: Query<Entity, With<PreviewBuildingBottomSupportSensor>>,
     mut inhabitants: EventWriter<SpawnNewInhabitant>,
+    mut player: ResMut<Player>,
 ) {
-    if events.is_empty() {
+    if events.is_empty() || player.money < 500 {
         return;
     }
     events.clear();
+
+    player.money -= 500;
 
     let (pb_entity, mut preview_building, transform) = preview_buildings.single_mut();
 
@@ -386,17 +438,17 @@ fn display_preview_building(
 ) {
     let (pb, transform) = preview_buildings.single();
 
-    if !pb.visible {
-        return;
-    }
-
     match pb.variant {
         BuildingVariants::Chimney(offset) => {
             gizmos.rect_2d(
                 transform.translation().xy() + offset,
                 0.0,
                 Vec2::new(20.0, 30.0),
-                if pb.blocked { RED } else { GREEN },
+                if !pb.visible || pb.blocked {
+                    RED
+                } else {
+                    GREEN
+                },
             );
         }
         BuildingVariants::Default => (),
@@ -406,7 +458,11 @@ fn display_preview_building(
         transform.translation().xy(),
         0.0,
         pb.size,
-        if pb.blocked { RED } else { GREEN },
+        if !pb.visible || pb.blocked {
+            RED
+        } else {
+            GREEN
+        },
     );
 
     gizmos.arrow_2d(
@@ -567,7 +623,7 @@ fn outline_buildings_system(buildings: Query<(&Building, &GlobalTransform)>, mut
             transform.translation().xy(),
             angle,
             building.size,
-            WHITE_SMOKE,
+            DARK_SLATE_BLUE,
         );
     }
 }
@@ -591,9 +647,26 @@ fn outline_chimneys_system(chimneys: Query<&GlobalTransform, With<Chimney>>, mut
 fn display_preview_joint(
     previews: Query<&BuildingJointPreview>,
     transforms: Query<&GlobalTransform>,
+    windows: Query<&Window>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
+    spatial_query: SpatialQuery,
     mut gizmos: Gizmos,
 ) {
     let preview = previews.single();
+
+    let window = windows.single();
+    let (camera, camera_transform) = cameras.single();
+
+    let cursor_position = match window.cursor_position() {
+        Some(x) => x,
+        None => return,
+    };
+
+    let cursor_world_position = match camera.viewport_to_world_2d(camera_transform, cursor_position)
+    {
+        Some(x) => x,
+        None => return,
+    };
 
     if let Some(e) = preview.entity_start {
         let transform = match transforms.get(e) {
@@ -604,8 +677,32 @@ fn display_preview_joint(
         let point =
             transform.translation().xy() + transform.right().xy().rotate(preview.local_start);
 
-        gizmos.circle_2d(point, 3.0, PURPLE);
+        gizmos.circle_2d(point, 8.0, PURPLE);
+
+        gizmos.arrow_2d(point, cursor_world_position, WHITE);
     }
+
+    let targeting_building = if let Some(projected) = spatial_query.project_point(
+        cursor_world_position,
+        true,
+        SpatialQueryFilter::from_mask(Layers::Building),
+    ) {
+        projected.is_inside
+    } else {
+        false
+    };
+
+    gizmos.circle_2d(
+        cursor_world_position,
+        8.0,
+        if targeting_building {
+            GREEN
+        } else if preview.entity_start.is_some() {
+            ORANGE
+        } else {
+            RED
+        },
+    );
 }
 
 /// display joints

@@ -53,7 +53,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Player { money: 10000 })
+        app.insert_resource(Player { money: 1000 })
             .add_systems(Startup, add_default_entities)
             .add_systems(Update, update_player_money_label);
     }
