@@ -6,14 +6,15 @@ use bevy::{
     color::palettes::css::{DARK_GREEN, GOLD},
     prelude::*,
 };
+use rand::seq::SliceRandom;
 use rand::Rng;
 
 use crate::{building::Building, player::Player};
 
 /// Width of a inhabitant
-const WIDTH: f32 = 7.5;
+const WIDTH: f32 = 30.0;
 /// Height of a inhabitant
-const HEIGHT: f32 = 20.0;
+const HEIGHT: f32 = 40.0;
 
 /// An inhabitant with its home building marked
 #[derive(Component)]
@@ -66,7 +67,7 @@ fn move_inside_building(
                 + (10.0 * falling_velocity + walk) * time.delta_seconds())
             .clamp(-halfsize, halfsize),
             -building.size.y / 2.0 + HEIGHT / 2.0,
-            0.0,
+            1.0,
         );
 
         inhabitant.move_timer.tick(time.delta());
@@ -80,16 +81,31 @@ fn move_inside_building(
 }
 
 /// spawn new inhabitatns in the given building
-fn handle_spawn_new_inhabitant(mut cmd: Commands, mut events: EventReader<SpawnNewInhabitant>) {
+fn handle_spawn_new_inhabitant(
+    mut cmd: Commands,
+    mut events: EventReader<SpawnNewInhabitant>,
+    asset_server: Res<AssetServer>,
+) {
+    let mut rng = rand::thread_rng();
+    let inhabs = [
+        "mannli1.png",
+        "mannli2.png",
+        "mannli3.png",
+        "maennli2.2.png",
+    ];
+
     for SpawnNewInhabitant(building_entity) in events.read() {
         let inhabitant = cmd
             .spawn((
-                TransformBundle::IDENTITY,
                 Inhabitant {
                     target_x: 0.0,
                     move_timer: Timer::from_seconds(0.0, TimerMode::Repeating),
                 },
                 RentTimer(Timer::from_seconds(10.0, TimerMode::Repeating)),
+                SpriteBundle {
+                    texture: asset_server.load(inhabs.choose(&mut rng).unwrap().to_string()),
+                    ..default()
+                },
             ))
             .id();
 
@@ -104,6 +120,7 @@ fn handle_rent_timers(
     buildings: Query<(&Building, &GlobalTransform)>,
     time: Res<Time>,
     mut player: ResMut<Player>,
+    assets: Res<AssetServer>,
 ) {
     for (rent_global, mut rent_timer, parent) in timers.iter_mut() {
         let timer = &mut rent_timer.0;
@@ -116,17 +133,22 @@ fn handle_rent_timers(
             };
 
             // should probably be an event
-            let rent = building_global.translation().y + building.size.x;
-            player.money += rent as i32;
+            let rent = building_global.translation().y * 0.5 + building.size.x;
+            player.money += rent as i64;
 
             let mut rng = rand::thread_rng();
 
             cmd.spawn((
-                TransformBundle::from_transform(rent_global.compute_transform()),
+                // TransformBundle::from_transform(rent_global.compute_transform()),
                 MoneyVisual {
                     vel: Vec2::new(rng.gen_range(-20..20) as f32, rng.gen_range(1..100) as f32)
                         .normalize(),
                     death: Timer::from_seconds(5.0, TimerMode::Once),
+                },
+                SpriteBundle {
+                    texture: assets.load("note.png"),
+                    transform: rent_global.compute_transform(),
+                    ..default()
                 },
             ));
         }
@@ -192,9 +214,9 @@ impl Plugin for InhabitantPlugin {
                 Update,
                 (
                     move_inside_building,
-                    outline_inhabitant,
+                    // outline_inhabitant,
                     update_money,
-                    draw_money,
+                    // draw_money,
                 ),
             )
             .add_systems(

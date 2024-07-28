@@ -90,11 +90,31 @@ fn init_level(mut commands: Commands, asset_server: Res<AssetServer>, windows: Q
 
     // Background
     commands.spawn(SpriteBundle {
-        texture: asset_server.load("bg.png"),
+        texture: asset_server.load("backgroundheight.png"),
         sprite: Sprite {
             custom_size: Some(window.size()),
             ..default()
         },
+        transform: Transform::from_xyz(0.0, 0.0, -1.0),
+        ..default()
+    });
+    commands.spawn(SpriteBundle {
+        texture: asset_server.load("backgroundheight.png"),
+        sprite: Sprite {
+            custom_size: Some(window.size()),
+            ..default()
+        },
+        transform: Transform::from_xyz(0.0, window.size().y, -1.0),
+        ..default()
+    });
+
+    commands.spawn(SpriteBundle {
+        texture: asset_server.load("backgroundheight.png"),
+        sprite: Sprite {
+            custom_size: Some(window.size()),
+            ..default()
+        },
+        transform: Transform::from_xyz(0.0, window.size().y * 2.0, -1.0),
         ..default()
     });
 }

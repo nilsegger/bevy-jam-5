@@ -9,17 +9,17 @@ use bevy::{
         BLACK, DARK_GRAY, DARK_GREY, DARK_SLATE_BLUE, GREEN, ORANGE, PURPLE, RED, WHITE,
         WHITE_SMOKE,
     },
+    math::NormedVectorSpace,
     prelude::*,
 };
 
 use rand::prelude::*;
+use rand::seq::SliceRandom;
 
 use crate::{inhabitants::SpawnNewInhabitant, layers::*, player::Player};
 
 /// The kind of operations supported
 enum BuildOps {
-    /// None
-    None,
     /// Build a new building
     Building,
     /// Build a new joint
@@ -51,6 +51,8 @@ struct BuildingJointPreview {
     entity_start: Option<Entity>,
     /// local start will be used as anchor
     local_start: Vec2,
+    /// current length
+    length: f32,
 }
 
 /// Types of buildings
@@ -91,8 +93,6 @@ const PREVIEW_BUILDING_EPS: f32 = 0.02;
 /// Bundles all important components for a building
 #[derive(Bundle)]
 struct BuildingBundle {
-    /// the transform
-    transform: TransformBundle,
     /// building properties
     building: Building,
     /// should be static for now
@@ -101,6 +101,8 @@ struct BuildingBundle {
     collider: Collider,
     /// Correct layers
     layers: CollisionLayers,
+    /// Sprite bundle, contains transform
+    sprite: SpriteBundle,
 }
 
 /// The component which will be attached to the cursor,
@@ -112,6 +114,10 @@ struct CursorBuilder;
 #[derive(Event)]
 struct PlaceBuildingEvent;
 
+/// Text that will show if player has enough money
+#[derive(Component)]
+struct CursorBuildText;
+
 /// Adds the starting building for the tower
 /// Adds the CursorBuilder
 fn add_default_entities(
@@ -119,6 +125,38 @@ fn add_default_entities(
     mut inhabitants: EventWriter<SpawnNewInhabitant>,
     asset_server: Res<AssetServer>,
 ) {
+    cmd.spawn((
+        CursorBuildText,
+        Text2dBundle {
+            text: Text::from_section(
+                "Build",
+                TextStyle {
+                    font: asset_server.load("fonts/RobotoSlab.ttf"),
+                    font_size: 52.0,
+                    color: WHITE.into(),
+                },
+            )
+            .with_justify(JustifyText::Left),
+            ..default()
+        },
+    ));
+
+    cmd.spawn((
+        CursorBuildText,
+        Text2dBundle {
+            text: Text::from_section(
+                "Build",
+                TextStyle {
+                    font: asset_server.load("fonts/RobotoSlab.ttf"),
+                    font_size: 50.0,
+                    color: PURPLE.into(),
+                },
+            )
+            .with_justify(JustifyText::Left),
+            ..default()
+        },
+    ));
+
     cmd.spawn((
         CursorBuilder,
         TransformBundle::IDENTITY,
@@ -158,17 +196,25 @@ fn add_default_entities(
     cmd.spawn(BuildingJointPreview {
         entity_start: None,
         local_start: Vec2::ZERO,
+        length: 0.0,
     });
 
     let building = cmd
         .spawn(BuildingBundle {
-            transform: TransformBundle::IDENTITY,
             building: Building {
                 size: Vec2::new(100.0, 60.0),
             },
             rigidbody: RigidBody::Dynamic,
             collider: Collider::rectangle(100.0, 60.0),
             layers: building_layers(),
+            sprite: SpriteBundle {
+                texture: asset_server.load("apartmentlila.png"),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(100.0, 60.0)),
+                    ..default()
+                },
+                ..default()
+            },
         })
         .id();
 
@@ -239,6 +285,52 @@ fn update_cursor_builder(
 
     let mut builder_transform = cursor_builders.single_mut();
     builder_transform.translation = cursor_world_position.extend(0.0);
+}
+
+/// update how much money a building costs
+fn update_cursor_text(
+    mut texts: Query<(&mut Transform, &mut Text), With<CursorBuildText>>,
+    windows: Query<&Window>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
+    player: Res<Player>,
+    ops: Res<SelectedBuildOps>,
+    joint_preview: Query<&BuildingJointPreview>,
+) {
+    let window = windows.single();
+    let (camera, camera_transform) = cameras.single();
+
+    let cursor_position = match window.cursor_position() {
+        Some(x) => x,
+        None => return,
+    };
+
+    let cursor_world_position = match camera.viewport_to_world_2d(camera_transform, cursor_position)
+    {
+        Some(x) => x,
+        None => return,
+    };
+
+    for (mut transform, mut text) in texts.iter_mut() {
+        transform.translation = (cursor_world_position + Vec2::new(60.0, -40.0)).extend(10.0);
+
+        if matches!(ops.selected, BuildOps::Building) {
+            if player.money < 500 {
+                text.sections[0].value = "Requires 500$".to_string();
+            } else {
+                text.sections[0].value = "".to_string();
+            }
+        } else {
+            let preview = joint_preview.single();
+
+            if preview.length < 0.1 {
+                text.sections[0].value = "".to_string();
+            } else if player.money < preview.length as i64 * 3 {
+                text.sections[0].value = format!("Requires {}$", preview.length as i32 * 3);
+            } else {
+                text.sections[0].value = format!("{}$", preview.length as i32 * 3);
+            }
+        }
+    }
 }
 
 /// Checks if the event was called in a place where there is a possible slot nearby
@@ -346,6 +438,7 @@ fn handle_place_building_event(
     pb_bottom_support_sensors: Query<Entity, With<PreviewBuildingBottomSupportSensor>>,
     mut inhabitants: EventWriter<SpawnNewInhabitant>,
     mut player: ResMut<Player>,
+    assets: Res<AssetServer>,
 ) {
     if events.is_empty() || player.money < 500 {
         return;
@@ -356,6 +449,19 @@ fn handle_place_building_event(
 
     let (pb_entity, mut preview_building, transform) = preview_buildings.single_mut();
 
+    let apartments = [
+        "apartmentBLUE.png",
+        "apartmentBLUE2.png",
+        "apartmentDARK.png",
+        "apartmentGREEN.png",
+        "apartmentLIGHT.png",
+        "apartmentPINK.png",
+        "apartmentYELLOW.png",
+        "apartmentlila.png",
+    ];
+
+    let mut rng = rand::thread_rng();
+
     let building = cmd
         .spawn(BuildingBundle {
             building: Building {
@@ -363,8 +469,16 @@ fn handle_place_building_event(
             },
             collider: Collider::rectangle(preview_building.size.x, preview_building.size.y),
             rigidbody: RigidBody::Dynamic,
-            transform: TransformBundle::from_transform(transform.compute_transform()),
             layers: building_layers(),
+            sprite: SpriteBundle {
+                texture: assets.load(apartments.choose(&mut rng).unwrap().to_string()),
+                sprite: Sprite {
+                    custom_size: Some(preview_building.size),
+                    ..default()
+                },
+                transform: transform.compute_transform(),
+                ..default()
+            },
         })
         .id();
 
@@ -374,12 +488,14 @@ fn handle_place_building_event(
             let chimney = cmd
                 .spawn((
                     Chimney,
-                    TransformBundle::from_transform(Transform::from_translation(
-                        offset.extend(0.0),
-                    )),
                     Sensor,
                     Collider::rectangle(20.0, 30.0), // HACK: remove hardcoded
                     chimney_layers(),
+                    SpriteBundle {
+                        texture: assets.load("chimney.png"),
+                        transform: Transform::from_translation(offset.extend(0.0)),
+                        ..default()
+                    },
                 ))
                 .id();
             cmd.entity(building).add_child(chimney);
@@ -421,7 +537,7 @@ fn handle_place_building_event(
             let offset = 0.4 * preview_building.size.x;
             let x_offset = rng.gen_range(-offset..=offset) as f32;
             let chimney_collider = Collider::rectangle(20.0, 30.0);
-            let chimney_offset = Vec2::new(x_offset, 30.0 + 15.0);
+            let chimney_offset = Vec2::new(x_offset, 30.0 + 20.0);
             preview_building.variant = BuildingVariants::Chimney(chimney_offset);
             cmd.entity(pb_entity).insert(Collider::compound(vec![
                 (Vec2::ZERO, 0.0, default_collider),
@@ -528,8 +644,6 @@ fn update_selected_build_op(
         build_ops.selected = BuildOps::Building;
     } else if keys.just_released(KeyCode::KeyJ) {
         build_ops.selected = BuildOps::Joint;
-    } else if keys.just_released(KeyCode::KeyN) {
-        build_ops.selected = BuildOps::None;
     }
 }
 
@@ -644,15 +758,16 @@ fn outline_chimneys_system(chimneys: Query<&GlobalTransform, With<Chimney>>, mut
 }
 
 /// display preview joints
+/// NOTE: this currently also sets the length of the joint...
 fn display_preview_joint(
-    previews: Query<&BuildingJointPreview>,
+    mut previews: Query<&mut BuildingJointPreview>,
     transforms: Query<&GlobalTransform>,
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     spatial_query: SpatialQuery,
     mut gizmos: Gizmos,
 ) {
-    let preview = previews.single();
+    let mut preview = previews.single_mut();
 
     let window = windows.single();
     let (camera, camera_transform) = cameras.single();
@@ -680,6 +795,10 @@ fn display_preview_joint(
         gizmos.circle_2d(point, 8.0, PURPLE);
 
         gizmos.arrow_2d(point, cursor_world_position, WHITE);
+
+        preview.length = cursor_world_position.distance(point);
+    } else {
+        preview.length = 0.0;
     }
 
     let targeting_building = if let Some(projected) = spatial_query.project_point(
@@ -747,7 +866,7 @@ impl Plugin for BuildingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlaceBuildingEvent>()
             .insert_resource(SelectedBuildOps {
-                selected: BuildOps::None,
+                selected: BuildOps::Building,
             })
             .add_systems(Startup, add_default_entities)
             .add_systems(
@@ -765,9 +884,10 @@ impl Plugin for BuildingsPlugin {
                     )
                         .run_if(only_for_building_op),
                     outline_buildings_system,
-                    outline_chimneys_system,
+                    // outline_chimneys_system,
                     display_preview_joint.run_if(only_for_joint_op),
                     display_joints,
+                    update_cursor_text,
                 ),
             )
             .add_systems(

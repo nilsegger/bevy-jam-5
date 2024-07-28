@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use avian2d::prelude::*;
+use bevy::color::palettes::css::{BLACK, DARK_RED};
 use bevy::{color::palettes::css::BROWN, prelude::*};
 use rand::seq::IteratorRandom;
 
@@ -46,12 +47,16 @@ fn add_default_plates(mut cmd: Commands, asset_server: Res<AssetServer>) {
                 RigidBody::Dynamic,
                 Collider::rectangle(width, height),
                 LockedAxes::ALL_LOCKED.unlock_translation_y(),
-                TransformBundle::from_transform(Transform::from_xyz(
-                    -500.0 + i as f32 * width,
-                    -30.0 - height / 2.0,
-                    0.0,
-                )),
                 plates_layers(),
+                SpriteBundle {
+                    texture: asset_server.load("ground.png"),
+                    transform: Transform::from_xyz(
+                        -500.0 + i as f32 * width,
+                        -30.0 - height / 2.0,
+                        0.0,
+                    ),
+                    ..default()
+                },
             ))
             .id();
 
@@ -80,15 +85,36 @@ fn add_default_plates(mut cmd: Commands, asset_server: Res<AssetServer>) {
             "Next Earthquake in: ",
             TextStyle {
                 font: asset_server.load("fonts/RobotoSlab.ttf"),
-                font_size: 50.0,
-                ..default()
+                font_size: 101.0,
+                color: BLACK.into(),
             },
         )
-        .with_text_justify(JustifyText::Right)
+        .with_text_justify(JustifyText::Center)
         .with_style(Style {
             position_type: PositionType::Absolute,
-            top: Val::Px(150.0),
-            right: Val::Px(5.0),
+            top: Val::Px(5.0),
+            right: Val::Px(0.0),
+            left: Val::Px(0.0),
+            ..default()
+        }),
+    ));
+
+    cmd.spawn((
+        EarthquakeLabel,
+        TextBundle::from_section(
+            "Next Earthquake in: ",
+            TextStyle {
+                font: asset_server.load("fonts/RobotoSlab.ttf"),
+                font_size: 100.0,
+                color: DARK_RED.into(),
+            },
+        )
+        .with_text_justify(JustifyText::Center)
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            right: Val::Px(0.0),
+            left: Val::Px(0.0),
             ..default()
         }),
     ));
@@ -147,11 +173,15 @@ fn earthquake(
 
     if timers.rumbles.just_finished() {
         let mut rng = rand::thread_rng();
-        let earthquake_plates = plates.iter().choose_multiple(&mut rng, 5);
+        let earthquake_plates = plates.iter().choose_multiple(&mut rng, 6);
 
         for plate_entity in &earthquake_plates {
-            cmd.entity(*plate_entity)
-                .insert(ExternalForce::new(Vec2::Y * 2000000.0).with_persistence(false));
+            cmd.entity(*plate_entity).insert(
+                ExternalForce::new(
+                    Vec2::Y * 3000000.0 * (timers.count as f32 + 10.0).log10().powi(4),
+                )
+                .with_persistence(false),
+            );
         }
     }
 }
@@ -176,13 +206,13 @@ fn update_earthquake_text(
     mut texts: Query<&mut Text, With<EarthquakeLabel>>,
     timer: Res<EarthquakeTimer>,
 ) {
-    let mut text = texts.single_mut();
-
-    text.sections[0].value = format!(
-        "Earthquake #{} in {}s",
-        timer.count + 1,
-        timer.next.remaining_secs() as i64
-    );
+    for mut text in texts.iter_mut() {
+        text.sections[0].value = format!(
+            "Earthquake #{} in {}s",
+            timer.count + 1,
+            timer.next.remaining_secs() as i64
+        );
+    }
 }
 
 /// Despawn buildings which are tilted more than X radian
@@ -203,6 +233,6 @@ impl Plugin for EarthquakePlugin {
                 rumbles: Timer::from_seconds(0.1, TimerMode::Repeating),
             })
             .add_systems(FixedUpdate, earthquake)
-            .add_systems(Update, (outline_plates, update_earthquake_text));
+            .add_systems(Update, update_earthquake_text);
     }
 }
