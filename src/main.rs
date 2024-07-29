@@ -55,7 +55,7 @@ fn main() {
         .add_plugins(PhysicsPlugins::default())
         // .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, (setup_camera, init_level))
-        .add_systems(Update, close_on_esc)
+        .add_systems(Update, (close_on_esc, move_camera))
         .run();
 }
 
@@ -77,11 +77,44 @@ pub fn close_on_esc(
 }
 
 /// Init 2d camera
-fn setup_camera(mut commands: Commands) {
+/// set it such that the ground is at the bottom of the screen
+/// TODO: add resize event
+fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
+    let window = windows.single();
+
+    let height = window.size().y;
+
     commands.spawn((Camera2dBundle {
-        transform: Transform::from_xyz(0.0, 100.0, 0.0),
+        transform: Transform::from_xyz(0.0, height / 2.0 - 200.0, 0.0),
         ..default()
     },));
+}
+
+/// move camera with arrow keys and scroll
+/// TODO: scroll
+fn move_camera(
+    mut cameras: Query<&mut Transform, With<Camera>>,
+    windows: Query<&Window>,
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    if cameras.is_empty() {
+        return;
+    }
+
+    let window = windows.single();
+
+    let height = window.size().y;
+
+    let mut camera = cameras.single_mut();
+    if keys.pressed(KeyCode::ArrowUp) {
+        camera.translation.y += time.delta_seconds() * 300.0;
+    }
+    if keys.pressed(KeyCode::ArrowDown) {
+        camera.translation.y -= time.delta_seconds() * 300.0;
+    }
+
+    camera.translation.y = camera.translation.y.max(height / 2.0 - 200.0);
 }
 
 /// load sprites etc

@@ -1,6 +1,6 @@
 //! Inhabitants will be livings inside of the buildings
 
-use std::time::Duration;
+use std::{f32::consts::PI, time::Duration};
 
 use bevy::{
     color::palettes::css::{DARK_GREEN, GOLD},
@@ -113,6 +113,21 @@ fn handle_spawn_new_inhabitant(
     }
 }
 
+/// Inhabitants die when they are rotated to strongly
+/// Should also die on hard impacts but i dont know how
+fn check_inhabitant_death(
+    mut cmd: Commands,
+    inhabs: Query<(Entity, &GlobalTransform), With<Inhabitant>>,
+) {
+    for (entity, global) in inhabs.iter() {
+        let angle = global.right().xy().to_angle();
+
+        if angle.abs() > PI {
+            cmd.entity(entity).despawn_recursive();
+        }
+    }
+}
+
 /// ADds money to the player and spawn a money particle
 fn handle_rent_timers(
     mut cmd: Commands,
@@ -214,6 +229,7 @@ impl Plugin for InhabitantPlugin {
                 Update,
                 (
                     move_inside_building,
+                    check_inhabitant_death,
                     // outline_inhabitant,
                     update_money,
                     // draw_money,

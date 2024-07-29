@@ -219,47 +219,6 @@ fn add_default_entities(
         .id();
 
     inhabitants.send(SpawnNewInhabitant(building));
-
-    cmd.spawn(NodeBundle {
-        style: Style {
-            position_type: PositionType::Absolute,
-            bottom: Val::Px(100.0),
-            right: Val::Px(100.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        },
-        ..default()
-    })
-    .with_children(|parent| {
-        parent
-            .spawn(ButtonBundle {
-                style: Style {
-                    width: Val::Px(200.0),
-                    height: Val::Px(65.0),
-                    border: UiRect::all(Val::Px(5.0)),
-                    // horizontally center child text
-                    justify_content: JustifyContent::Center,
-                    // vertically center child text
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                border_color: BorderColor(Color::BLACK),
-                border_radius: BorderRadius::MAX,
-                background_color: DARK_GREY.into(),
-                ..default()
-            })
-            .with_children(|parent| {
-                parent.spawn(TextBundle::from_section(
-                    "New Building (B)",
-                    TextStyle {
-                        font: asset_server.load("fonts/RobotoSlab.ttf"),
-                        font_size: 30.0,
-                        color: Color::srgb(0.9, 0.9, 0.9),
-                    },
-                ));
-            });
-    });
 }
 
 /// Sets the position of the CursorBuilder to the cursors position
