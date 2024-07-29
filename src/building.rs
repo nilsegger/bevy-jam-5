@@ -694,6 +694,7 @@ fn check_building_clicked_for_joint(
     mut previews: Query<&mut BuildingJointPreview>,
     transforms: Query<&GlobalTransform>,
     mut player: ResMut<Player>,
+    assets: Res<AssetServer>,
 ) {
     if !mouse.just_released(MouseButton::Left) {
         return;
@@ -766,6 +767,15 @@ fn check_building_clicked_for_joint(
                         .with_local_anchor_2(local_offset)
                         .with_rest_length(start_point.distance(projected.point)),
                 ));
+
+                cmd.spawn(AudioBundle {
+                    source: assets.load("build.ogg"),
+                    settings: PlaybackSettings {
+                        mode: bevy::audio::PlaybackMode::Despawn,
+                        volume: Volume::new(0.8),
+                        ..default()
+                    },
+                });
 
                 preview.entity_start = None;
             }

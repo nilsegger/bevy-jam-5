@@ -157,6 +157,15 @@ fn handle_rent_timers(
             let rent = building_global.translation().y * 0.5 + building.size.x;
             player.money += rent as i64;
 
+            cmd.spawn(AudioBundle {
+                source: assets.load("money.ogg"),
+                settings: PlaybackSettings {
+                    mode: bevy::audio::PlaybackMode::Despawn,
+                    volume: Volume::new(0.8),
+                    ..default()
+                },
+            });
+
             let mut rng = rand::thread_rng();
 
             cmd.spawn((

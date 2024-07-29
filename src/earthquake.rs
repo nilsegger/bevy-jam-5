@@ -250,11 +250,6 @@ fn update_earthquake_text(
     }
 }
 
-/// Despawn buildings which are tilted more than X radian
-fn remove_tilted_buildings(buildings: Query<&GlobalTransform, With<Building>>) {
-    // TODO: check for tilted
-}
-
 /// Earthquake logic bundled into plugin
 pub struct EarthquakePlugin;
 
