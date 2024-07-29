@@ -12,6 +12,7 @@ mod layers;
 mod player;
 
 use avian2d::{debug_render::PhysicsDebugPlugin, PhysicsPlugins};
+use bevy::audio::Volume;
 use bevy::prelude::*;
 use bevy::{asset::AssetMetaCheck, window::WindowResolution};
 use bevy_screen_diagnostics::{
@@ -54,7 +55,7 @@ fn main() {
         ))
         .add_plugins(PhysicsPlugins::default())
         // .add_plugins(PhysicsDebugPlugin::default())
-        .add_systems(Startup, (setup_camera, init_level))
+        .add_systems(Startup, (setup_camera, init_level, setup_audio))
         .add_systems(Update, (close_on_esc, move_camera))
         .run();
 }
@@ -88,6 +89,18 @@ fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
         transform: Transform::from_xyz(0.0, height / 2.0 - 200.0, 0.0),
         ..default()
     },));
+}
+
+/// loads background music
+fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn(AudioBundle {
+        source: asset_server.load("bg.ogg"),
+        settings: PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Loop,
+            volume: Volume::new(0.3),
+            ..default()
+        },
+    });
 }
 
 /// move camera with arrow keys and scroll

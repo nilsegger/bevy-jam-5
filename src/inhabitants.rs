@@ -3,6 +3,7 @@
 use std::{f32::consts::PI, time::Duration};
 
 use bevy::{
+    audio::Volume,
     color::palettes::css::{DARK_GREEN, GOLD},
     prelude::*,
 };
@@ -24,6 +25,10 @@ struct Inhabitant {
     /// when to move again
     move_timer: Timer,
 }
+
+/// when the inhabitant will talk
+#[derive(Component)]
+struct TalkTimer(Timer);
 
 /// Money will travel upwards to the side and then eventually fall down
 #[derive(Component)]
@@ -102,6 +107,7 @@ fn handle_spawn_new_inhabitant(
                     move_timer: Timer::from_seconds(0.0, TimerMode::Repeating),
                 },
                 RentTimer(Timer::from_seconds(10.0, TimerMode::Repeating)),
+                TalkTimer(Timer::from_seconds(10.0, TimerMode::Repeating)),
                 SpriteBundle {
                     texture: asset_server.load(inhabs.choose(&mut rng).unwrap().to_string()),
                     ..default()
@@ -219,6 +225,49 @@ fn outline_inhabitant(inhabitants: Query<&GlobalTransform, With<Inhabitant>>, mu
     }
 }
 
+/// Randomly spawns audio for inhabitants
+fn spawn_audio(
+    mut cmd: Commands,
+    mut timers: Query<&mut TalkTimer>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+) {
+    for mut timer in timers.iter_mut() {
+        let timer = &mut timer.0;
+        timer.tick(time.delta());
+
+        if timer.just_finished() {
+            let mut rng = rand::thread_rng();
+            let audios = [
+                Some("talk1.ogg"),
+                Some("talk2.ogg"),
+                Some("talk3.ogg"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ];
+
+            let audio = audios.choose(&mut rng).unwrap();
+
+            if audio.is_none() {
+                continue;
+            }
+
+            cmd.spawn(AudioBundle {
+                source: asset_server.load(audio.unwrap().to_string()),
+                settings: PlaybackSettings {
+                    mode: bevy::audio::PlaybackMode::Despawn,
+                    volume: Volume::new(0.8),
+                    ..default()
+                },
+            });
+        }
+    }
+}
+
 /// Functions bundled
 pub struct InhabitantPlugin;
 
@@ -237,7 +286,7 @@ impl Plugin for InhabitantPlugin {
             )
             .add_systems(
                 FixedUpdate,
-                (handle_spawn_new_inhabitant, handle_rent_timers),
+                (handle_spawn_new_inhabitant, handle_rent_timers, spawn_audio),
             );
     }
 }

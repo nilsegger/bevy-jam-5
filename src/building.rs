@@ -5,6 +5,7 @@
 
 use avian2d::prelude::*;
 use bevy::{
+    audio::Volume,
     color::palettes::css::{
         BLACK, DARK_GRAY, DARK_GREY, DARK_SLATE_BLUE, GREEN, ORANGE, PURPLE, RED, WHITE,
         WHITE_SMOKE,
@@ -504,6 +505,15 @@ fn handle_place_building_event(
             },
         })
         .id();
+
+    cmd.spawn(AudioBundle {
+        source: assets.load("build.ogg"),
+        settings: PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Despawn,
+            volume: Volume::new(1.0),
+            ..default()
+        },
+    });
 
     match preview_building.variant {
         BuildingVariants::Default => (),

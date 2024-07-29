@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use avian2d::prelude::*;
+use bevy::audio::Volume;
 use bevy::color::palettes::css::{BLACK, DARK_RED};
 use bevy::{color::palettes::css::BROWN, prelude::*};
 use rand::seq::IteratorRandom;
@@ -18,8 +19,25 @@ struct Plate;
 #[derive(Component)]
 struct EarthquakeLabel;
 
+/// the sound that will play for earthquakes
+#[derive(Component)]
+struct EarthquakeSound;
+
 /// Adds ground and plates
 fn add_default_plates(mut cmd: Commands, asset_server: Res<AssetServer>) {
+    cmd.spawn((
+        AudioBundle {
+            source: asset_server.load("earthquake.ogg"),
+            settings: PlaybackSettings {
+                mode: bevy::audio::PlaybackMode::Loop,
+                volume: Volume::new(1.0),
+                paused: true,
+                ..default()
+            },
+        },
+        EarthquakeSound,
+    ));
+
     let width = 50.0;
     let height = 50.0;
 
@@ -149,11 +167,28 @@ fn earthquake(
     delta: Res<Time>,
     mut timers: ResMut<EarthquakeTimer>,
     keys: Res<ButtonInput<KeyCode>>,
+    mut sounds: Query<&mut AudioSink, With<EarthquakeSound>>,
 ) {
     timers.next.tick(delta.delta());
 
+    if sounds.is_empty() {
+        return;
+    }
+    let sound = sounds.single_mut();
+
+    let elapsed = timers.next.elapsed_secs();
+    let remaining = timers.next.remaining_secs();
+    if remaining < 2.0 {
+        sound.play();
+        sound.set_volume(1.0 / 2.0 * (2.0 - remaining));
+    } else if timers.stop.paused() && elapsed <= 5.0 {
+        // an earthquake takes 3s
+        sound.set_volume(1.0 / 2.0 * (5.0 - elapsed));
+    }
+
     // if keys.just_pressed(KeyCode::KeyX)  {
     if timers.next.just_finished() {
+        sound.set_volume(1.0);
         timers.count += 1;
         let secs = (timers.next.duration().as_secs() - 1).max(5);
         timers.next.set_duration(Duration::from_secs(secs));
@@ -228,7 +263,7 @@ impl Plugin for EarthquakePlugin {
         app.add_systems(Startup, (add_default_plates, init_timers))
             .insert_resource(EarthquakeTimer {
                 count: 0,
-                next: Timer::from_seconds(30.0, TimerMode::Repeating),
+                next: Timer::from_seconds(25.0, TimerMode::Repeating),
                 stop: Timer::from_seconds(3.0, TimerMode::Repeating),
                 rumbles: Timer::from_seconds(0.1, TimerMode::Repeating),
             })
