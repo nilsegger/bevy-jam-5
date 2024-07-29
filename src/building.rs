@@ -209,7 +209,7 @@ fn add_default_entities(
             collider: Collider::rectangle(100.0, 60.0),
             layers: building_layers(),
             sprite: SpriteBundle {
-                texture: asset_server.load("apartmentlila.png"),
+                texture: asset_server.load("apartmentPINK.png"),
                 sprite: Sprite {
                     custom_size: Some(Vec2::new(100.0, 60.0)),
                     ..default()
@@ -225,14 +225,14 @@ fn add_default_entities(
         "Build Tool (B)",
         TextStyle {
             font: asset_server.load("fonts/RobotoSlab.ttf"),
-            font_size: 62.0,
+            font_size: 42.0,
             color: BLACK.into(),
         },
     )
     .with_text_justify(JustifyText::Center)
     .with_style(Style {
         position_type: PositionType::Absolute,
-        bottom: Val::Px(90.0),
+        bottom: Val::Px(70.0),
         left: Val::Px(3.0),
         ..default()
     }),));
@@ -241,14 +241,14 @@ fn add_default_entities(
         "Build Tool (B)",
         TextStyle {
             font: asset_server.load("fonts/RobotoSlab.ttf"),
-            font_size: 60.0,
+            font_size: 40.0,
             color: WHITE.into(),
         },
     )
     .with_text_justify(JustifyText::Center)
     .with_style(Style {
         position_type: PositionType::Absolute,
-        bottom: Val::Px(90.0),
+        bottom: Val::Px(70.0),
         left: Val::Px(5.0),
         ..default()
     }),));
@@ -257,7 +257,7 @@ fn add_default_entities(
         "Support Joint Tool (J)",
         TextStyle {
             font: asset_server.load("fonts/RobotoSlab.ttf"),
-            font_size: 62.0,
+            font_size: 42.0,
             color: BLACK.into(),
         },
     )
@@ -273,7 +273,7 @@ fn add_default_entities(
         "Support Joint Tool (J)",
         TextStyle {
             font: asset_server.load("fonts/RobotoSlab.ttf"),
-            font_size: 60.0,
+            font_size: 40.0,
             color: WHITE.into(),
         },
     )
@@ -481,7 +481,6 @@ fn handle_place_building_event(
         "apartmentLIGHT.png",
         "apartmentPINK.png",
         "apartmentYELLOW.png",
-        "apartmentlila.png",
     ];
 
     let mut rng = rand::thread_rng();

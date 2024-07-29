@@ -50,9 +50,9 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(ScreenDiagnosticsPlugin::default())
+        /* .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
-        .add_plugins(ScreenEntityDiagnosticsPlugin)
+        .add_plugins(ScreenEntityDiagnosticsPlugin) */
         .add_plugins((
             BuildingsPlugin,
             EarthquakePlugin,
