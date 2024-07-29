@@ -122,7 +122,7 @@ fn check_inhabitant_death(
     for (entity, global) in inhabs.iter() {
         let angle = global.right().xy().to_angle();
 
-        if angle.abs() > PI {
+        if angle.abs() > 0.9 * (PI / 2.0) {
             cmd.entity(entity).despawn_recursive();
         }
     }

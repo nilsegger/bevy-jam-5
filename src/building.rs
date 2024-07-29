@@ -219,6 +219,70 @@ fn add_default_entities(
         .id();
 
     inhabitants.send(SpawnNewInhabitant(building));
+
+    cmd.spawn((TextBundle::from_section(
+        "Build Tool (B)",
+        TextStyle {
+            font: asset_server.load("fonts/RobotoSlab.ttf"),
+            font_size: 62.0,
+            color: BLACK.into(),
+        },
+    )
+    .with_text_justify(JustifyText::Center)
+    .with_style(Style {
+        position_type: PositionType::Absolute,
+        bottom: Val::Px(90.0),
+        left: Val::Px(3.0),
+        ..default()
+    }),));
+
+    cmd.spawn((TextBundle::from_section(
+        "Build Tool (B)",
+        TextStyle {
+            font: asset_server.load("fonts/RobotoSlab.ttf"),
+            font_size: 60.0,
+            color: WHITE.into(),
+        },
+    )
+    .with_text_justify(JustifyText::Center)
+    .with_style(Style {
+        position_type: PositionType::Absolute,
+        bottom: Val::Px(90.0),
+        left: Val::Px(5.0),
+        ..default()
+    }),));
+
+    cmd.spawn((TextBundle::from_section(
+        "Support Joint Tool (J)",
+        TextStyle {
+            font: asset_server.load("fonts/RobotoSlab.ttf"),
+            font_size: 62.0,
+            color: BLACK.into(),
+        },
+    )
+    .with_text_justify(JustifyText::Center)
+    .with_style(Style {
+        position_type: PositionType::Absolute,
+        bottom: Val::Px(25.0),
+        left: Val::Px(1.0),
+        ..default()
+    }),));
+
+    cmd.spawn((TextBundle::from_section(
+        "Support Joint Tool (J)",
+        TextStyle {
+            font: asset_server.load("fonts/RobotoSlab.ttf"),
+            font_size: 60.0,
+            color: WHITE.into(),
+        },
+    )
+    .with_text_justify(JustifyText::Center)
+    .with_style(Style {
+        position_type: PositionType::Absolute,
+        bottom: Val::Px(25.0),
+        left: Val::Px(5.0),
+        ..default()
+    }),));
 }
 
 /// Sets the position of the CursorBuilder to the cursors position
@@ -598,9 +662,12 @@ fn find_building_closest_to_cursor(
 fn update_selected_build_op(
     keys: Res<ButtonInput<KeyCode>>,
     mut build_ops: ResMut<SelectedBuildOps>,
+    mut joint_preview: Query<&mut BuildingJointPreview>,
 ) {
     if keys.just_released(KeyCode::KeyB) {
         build_ops.selected = BuildOps::Building;
+
+        joint_preview.single_mut().entity_start = None;
     } else if keys.just_released(KeyCode::KeyJ) {
         build_ops.selected = BuildOps::Joint;
     }
@@ -616,6 +683,7 @@ fn check_building_clicked_for_joint(
     spatial_query: SpatialQuery,
     mut previews: Query<&mut BuildingJointPreview>,
     transforms: Query<&GlobalTransform>,
+    mut player: ResMut<Player>,
 ) {
     if !mouse.just_released(MouseButton::Left) {
         return;
@@ -665,6 +733,15 @@ fn check_building_clicked_for_joint(
                     Ok(x) => x,
                     Err(_) => return, // NOTE: silend failing...
                 };
+
+                let cost =
+                    (transform_start.translation().xy().distance(projected.point) * 3.0) as i64;
+                if cost > player.money {
+                    return;
+                } else {
+                    player.money -= cost;
+                }
+
                 // preview.entity_end = Some(projected.entity);
                 // preview.local_end = local_offset;
                 //
@@ -803,8 +880,17 @@ fn display_joints(
         let point1 = t1.translation().xy() + t1.right().xy().rotate(joint.local_anchor_1());
         let point2 = t2.translation().xy() + t2.right().xy().rotate(joint.local_anchor_2());
 
-        gizmos.arrow_2d(point1, point2, ORANGE);
-        gizmos.arrow_2d(point2, point1, ORANGE);
+        gizmos.circle_2d(point1, 8.0, WHITE);
+        gizmos.circle_2d(point1, 7.0, PURPLE);
+        gizmos.circle_2d(point2, 8.0, WHITE);
+        gizmos.circle_2d(point2, 7.0, PURPLE);
+
+        gizmos.line_2d(point1, point2, WHITE);
+        gizmos.line_2d(
+            point1 + Vec2::new(1.0, -1.0),
+            point2 + Vec2::new(1.0, -1.0),
+            PURPLE,
+        );
     }
 }
 
