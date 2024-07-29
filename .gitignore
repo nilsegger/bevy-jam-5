@@ -3,4 +3,6 @@ Cargo.lock
 wasm/*
 !wasm/index.html
 !wasm/restart-audio-context.js
+!wasm/style.css
 butler
+

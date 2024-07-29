@@ -1,7 +1,13 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+        <title>Bevy game</title> <!-- ToDo -->
+        <link data-trunk rel="inline" href="style.css"/>
+    </head>
+    <body>
 
-<body style="margin: 0px;">
   <script type="module">
     import './restart-audio-context.js'
     import init from './bevy_game.js'
@@ -12,6 +18,31 @@
       }
     });
   </script>
-</body>
 
+        <div class="game-container">
+            <div class="lds-dual-ring"></div>
+            <canvas id="bevy">
+                Javascript and support for canvas is required
+            </canvas>
+        </div>
+    </body>
 </html>
+
+
+<!-- <!doctype html> -->
+<!-- <html lang="en"> -->
+<!---->
+<!-- <body style="margin: 0px;"> -->
+<!--   <script type="module"> -->
+<!--     import './restart-audio-context.js' -->
+<!--     import init from './bevy_game.js' -->
+<!---->
+<!--     init().catch((error) => { -->
+<!--       if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) { -->
+<!--         throw error; -->
+<!--       } -->
+<!--     }); -->
+<!--   </script> -->
+<!-- </body> -->
+<!---->
+<!-- </html> -->

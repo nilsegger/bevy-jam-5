@@ -29,20 +29,26 @@ use crate::{building::BuildingsPlugin, earthquake::EarthquakePlugin};
 fn main() {
     App::new()
         .add_plugins(
-            DefaultPlugins.set(AssetPlugin {
-                // Wasm builds will check for meta files (that don't exist) if this isn't set.
-                // This causes errors and even panics in web builds on itch.
-                // See https://github.com/bevyengine/bevy_github_ci_template/issues/48.
-                meta_check: AssetMetaCheck::Never,
-                ..default()
-            }), // .set(WindowPlugin {
-                //     primary_window: Some(Window {
-                //         resolution: WindowResolution::new(640., 360.)
-                //             .with_scale_factor_override(1.0),
-                //         ..default()
-                //     }),
-                //     ..default()
-                // }),
+            DefaultPlugins
+                .set(AssetPlugin {
+                    // Wasm builds will check for meta files (that don't exist) if this isn't set.
+                    // This causes errors and even panics in web builds on itch.
+                    // See https://github.com/bevyengine/bevy_github_ci_template/issues/48.
+                    meta_check: AssetMetaCheck::Never,
+                    ..default()
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Earthquakes".to_string(), // ToDo
+                        // Bind to canvas included in `index.html`
+                        canvas: Some("#bevy".to_owned()),
+                        fit_canvas_to_parent: true,
+                        // Tells wasm not to override default event handling, like F5 and Ctrl+R
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
+                    ..default()
+                }),
         )
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
@@ -56,7 +62,7 @@ fn main() {
         .add_plugins(PhysicsPlugins::default())
         // .add_plugins(PhysicsDebugPlugin::default())
         .add_systems(Startup, (setup_camera, init_level, setup_audio))
-        .add_systems(Update, (close_on_esc, move_camera))
+        .add_systems(Update, move_camera)
         .run();
 }
 
